@@ -1,0 +1,43 @@
+name: Build and publish Snap
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the built snap to the configured channel
+        required: true
+        default: false
+        type: boolean
+      channel:
+        description: Snap Store channel for manual publishing
+        required: true
+        default: stable
+        type: choice
+        options: [edge, beta, candidate, stable]
+
+permissions:
+  contents: read
+
+jobs:
+  snap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Snapcraft
+        run: sudo snap install snapcraft --classic
+      - name: Build snap
+        run: snapcraft pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-snap
+          path: "*.snap"
+          if-no-files-found: error
+      - name: Publish to Snap Store
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+          SNAP_CHANNEL: ${{ inputs.channel }}
+        run: snapcraft upload --release="${SNAP_CHANNEL}" ./*.snap
+

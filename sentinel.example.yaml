@@ -1,0 +1,25 @@
+# Sentinel's conservative defaults are suitable for authorized, low-impact checks.
+timeout_seconds: 8
+concurrency: 4
+rate_limit_per_second: 1
+verify_tls: true
+ports: [80, 443, 8080, 8443, 8000, 3000, 5000, 22]
+enable_port_scan: true
+enable_banner_grab: false
+enable_passive_subdomains: false
+enable_public_api_probe: false
+enable_content_discovery: false
+max_directory_requests: 50
+max_sitemap_urls: 100
+max_js_files: 10
+allow_private: false
+
+profiles:
+  passive:
+    enable_port_scan: false
+    enable_passive_subdomains: true
+  local-lab:
+    allow_private: true
+    rate_limit_per_second: 2
+    enable_port_scan: true
+

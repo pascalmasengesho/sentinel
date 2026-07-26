@@ -1,0 +1,11 @@
+services:
+  sentinel:
+    build:
+      context: .
+    image: sentinel-bounty:local
+    user: "${UID:-1000}:${GID:-1000}"
+    volumes:
+      - ./reports:/output
+    entrypoint: ["sentinel"]
+    command: ["--help"]
+

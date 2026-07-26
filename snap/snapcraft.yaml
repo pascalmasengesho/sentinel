@@ -1,0 +1,30 @@
+name: sentinel-bounty
+version: "0.1.0"
+summary: Safe reconnaissance for authorized security assessments
+description: |
+  Sentinel is a rate-limited command-line assistant for authorized security
+  assessments and bug bounty programs. It performs non-destructive discovery,
+  analysis, and reporting only.
+license: MIT
+grade: stable
+confinement: strict
+base: core24
+
+platforms:
+  amd64:
+  arm64:
+
+apps:
+  sentinel:
+    command: bin/sentinel
+    plugs:
+      - network
+      - home
+
+parts:
+  sentinel:
+    plugin: python
+    source: ..
+    build-packages:
+      - python3-dev
+

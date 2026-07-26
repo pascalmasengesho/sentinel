@@ -1,0 +1,115 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Verify and build distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e '.[dev]'
+      - run: python -m black --check sentinel tests
+      - run: python -m ruff check sentinel tests
+      - run: python -m mypy sentinel
+      - run: python -m pytest
+      - run: python -m build
+      - run: python -m twine check dist/*
+      - run: python scripts/release_preflight.py --dist dist
+      - run: python scripts/render_aur_pkgbuild.py --sdist dist/sentinel_bounty-*.tar.gz --output dist/aur/PKGBUILD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-dists
+          path: dist/
+          if-no-files-found: error
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/sentinel-bounty
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-dists
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  publish-aur:
+    name: Publish AUR recipe
+    needs: [build, publish-pypi]
+    runs-on: ubuntu-latest
+    env:
+      AUR_PACKAGE_NAME: sentinel-bounty
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-dists
+          path: dist/
+      - name: Configure AUR SSH key
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${AUR_SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+      - name: Clone package repository
+        run: git clone "ssh://aur@aur.archlinux.org/${AUR_PACKAGE_NAME}.git" aur-repository
+      - name: Update recipe and source metadata
+        run: |
+          cp dist/aur/PKGBUILD aur-repository/PKGBUILD
+          docker run --rm -v "${PWD}/aur-repository:/pkg" -w /pkg archlinux:latest /bin/bash -lc '
+            pacman -Syu --noconfirm pacman-contrib base-devel
+            useradd -m builder
+            chown -R builder:builder /pkg
+            su builder -c "makepkg --printsrcinfo" > .SRCINFO
+          '
+      - name: Push AUR update
+        working-directory: aur-repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add PKGBUILD .SRCINFO
+          git diff --cached --quiet || git commit -m "Update AUR recipe"
+          git push
+
+  github-release:
+    name: Create GitHub release
+    needs: [build, publish-pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-dists
+          path: dist/
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/aur/PKGBUILD

@@ -1,0 +1,22 @@
+name: Bug report
+description: Report a reproducible Sentinel defect without sensitive target details.
+title: "bug: "
+labels: [bug]
+body:
+  - type: textarea
+    attributes:
+      label: What happened?
+      description: Remove target-sensitive data, credentials, and private reports.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Sentinel version
+    validations:
+      required: true
+
