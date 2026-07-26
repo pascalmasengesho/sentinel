@@ -27,7 +27,7 @@ For end users, install the published package with `pipx install sentinel-bounty`
 For local development:
 
 ```bash
-git clone https://github.com/YOUR_GITHUB_ORG/sentinel.git
+git clone https://github.com/pascalmasengesho/sentinel.git
 cd sentinel
 python3.12 -m venv .venv
 source .venv/bin/activate

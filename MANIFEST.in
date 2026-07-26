@@ -1,0 +1,11 @@
+include LICENSE
+include README.md
+include CHANGELOG.md
+include CONTRIBUTING.md
+include CODE_OF_CONDUCT.md
+include SECURITY.md
+include sentinel.example.yaml
+recursive-include docs *.md
+recursive-include examples *.json *.py
+recursive-include sentinel *.py
+

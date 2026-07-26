@@ -1,0 +1,14 @@
+{
+  "target": "https://example.invalid/",
+  "started_at": "2026-07-22T00:00:00+00:00",
+  "finished_at": "2026-07-22T00:00:02+00:00",
+  "authorized": true,
+  "version": "0.1.0",
+  "notice": "Sample report; findings are observations requiring manual verification.",
+  "statistics": {"modules_run": 2, "findings": 1, "errors": 0, "high": 0, "medium": 0, "low": 1, "info": 0},
+  "modules": [
+    {"module": "http", "data": {"status_code": 200, "http_version": "HTTP/1.1"}, "findings": [], "errors": [], "duration_ms": 120},
+    {"module": "headers", "data": {}, "findings": [{"title": "Missing Content-Security-Policy header", "severity": "low", "description": "Example only.", "evidence": "Response lacked the header.", "recommendation": "Verify policy requirements.", "module": "headers", "cvss": "", "url": "https://example.invalid/"}], "errors": [], "duration_ms": 1}
+  ]
+}
+

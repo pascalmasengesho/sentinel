@@ -1,0 +1,53 @@
+name: Publish AUR recipe
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing GitHub release tag containing the generated PKGBUILD asset
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  aur:
+    runs-on: ubuntu-latest
+    env:
+      AUR_PACKAGE_NAME: sentinel-bounty
+      RELEASE_TAG: ${{ inputs.release_tag || github.event.release.tag_name }}
+    steps:
+      - name: Download generated package recipe
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p aur-assets
+          gh release download "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" --pattern PKGBUILD --dir aur-assets
+      - name: Configure AUR SSH key
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${AUR_SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+      - name: Clone package repository
+        run: git clone "ssh://aur@aur.archlinux.org/${AUR_PACKAGE_NAME}.git" aur-repository
+      - name: Update recipe and source metadata
+        run: |
+          cp aur-assets/PKGBUILD aur-repository/PKGBUILD
+          docker run --rm -v "${PWD}/aur-repository:/pkg" -w /pkg archlinux:latest /bin/bash -lc '
+            pacman -Syu --noconfirm pacman-contrib base-devel
+            useradd -m builder
+            chown -R builder:builder /pkg
+            su builder -c "makepkg --printsrcinfo" > .SRCINFO
+          '
+      - name: Push AUR update
+        working-directory: aur-repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add PKGBUILD .SRCINFO
+          git diff --cached --quiet || git commit -m "Update to ${RELEASE_TAG}"
+          git push
