@@ -92,7 +92,6 @@ python_version = "3.12"
 strict = true
 warn_unreachable = true
 exclude = ["tests"]
-mypy_path = ["."]
 
 [[tool.mypy.overrides]]
 module = ["yaml", "whois", "reportlab.*"]
