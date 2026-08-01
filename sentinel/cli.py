@@ -118,7 +118,10 @@ def scan(
         raise typer.Exit(code=2) from exc
 
     with Progress(
-        SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        disable=not _progress_is_enabled(console.is_interactive, console.legacy_windows),
     ) as progress:
         progress.add_task("Running safe, rate-limited assessment checks…", total=None)
         report = asyncio.run(scanner.scan())
@@ -146,3 +149,8 @@ def _print_summary(statistics: dict[str, int], path: Path) -> None:
         str(path),
     )
     console.print(table)
+
+
+def _progress_is_enabled(is_interactive: bool, legacy_windows: bool) -> bool:
+    """Avoid Unicode spinner output in non-interactive or legacy Windows consoles."""
+    return is_interactive and not legacy_windows
