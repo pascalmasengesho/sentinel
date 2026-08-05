@@ -28,6 +28,7 @@ class HttpResponse:
     text: str
     http_version: str
     redirect_chain: list[str]
+    content: bytes = b""
 
 
 class RateLimiter:
@@ -94,6 +95,7 @@ class SafeHttpClient:
                     text=response.text[: self.config.max_response_bytes],
                     http_version=response.http_version,
                     redirect_chain=redirects,
+                    content=response.content[: self.config.max_response_bytes],
                 )
             location = response.headers.get("location")
             if not location:
@@ -104,6 +106,7 @@ class SafeHttpClient:
                     text=response.text[: self.config.max_response_bytes],
                     http_version=response.http_version,
                     redirect_chain=redirects,
+                    content=response.content[: self.config.max_response_bytes],
                 )
             redirects.append(str(response.url))
             current_url = urljoin(str(response.url), location)

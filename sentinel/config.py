@@ -27,6 +27,7 @@ class ScanConfig:
     enable_banner_grab: bool = False
     enable_passive_subdomains: bool = False
     enable_public_api_probe: bool = False
+    enable_public_artifact_checks: bool = False
     enable_content_discovery: bool = False
     wordlist_path: str | None = None
     max_directory_requests: int = 50

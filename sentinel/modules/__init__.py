@@ -1,6 +1,7 @@
 """Non-destructive scanner modules bundled with Sentinel."""
 
 from sentinel.modules.api import ApiDiscoveryModule
+from sentinel.modules.artifacts import PublicArtifactModule
 from sentinel.modules.dns import DnsModule
 from sentinel.modules.headers import HeaderModule
 from sentinel.modules.http import HttpModule
@@ -15,6 +16,7 @@ from sentinel.modules.wordlist import WordlistModule
 
 __all__ = [
     "ApiDiscoveryModule",
+    "PublicArtifactModule",
     "DnsModule",
     "HeaderModule",
     "HttpModule",

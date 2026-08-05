@@ -14,3 +14,9 @@ def test_applies_safe_cli_override() -> None:
 def test_rejects_unsafe_rate_override() -> None:
     with pytest.raises(ValueError, match="rate_limit"):
         apply_overrides(ScanConfig(), {"rate_limit_per_second": 99})
+
+
+def test_public_artifact_checks_are_opt_in() -> None:
+    config = apply_overrides(ScanConfig(), {"enable_public_artifact_checks": True})
+
+    assert config.enable_public_artifact_checks

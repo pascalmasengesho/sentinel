@@ -16,6 +16,7 @@ from sentinel.modules import (
     HttpModule,
     JavaScriptModule,
     PortModule,
+    PublicArtifactModule,
     ReconModule,
     RobotsModule,
     SitemapModule,
@@ -60,9 +61,10 @@ class Scanner:
             ]
             report.modules.extend(await self._run_stage(second_stage, context))
             report.modules.extend(await self._run_stage([SitemapModule()], context))
-            report.modules.extend(
-                await self._run_stage([ApiDiscoveryModule(), WordlistModule()], context)
-            )
+            final_stage: list[ScanModule] = [ApiDiscoveryModule(), WordlistModule()]
+            if self.config.enable_public_artifact_checks:
+                final_stage.append(PublicArtifactModule())
+            report.modules.extend(await self._run_stage(final_stage, context))
 
             plugins, plugin_errors = load_plugins(self.config.plugin_directory)
             if plugin_errors:

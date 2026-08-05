@@ -73,6 +73,13 @@ def scan(
     api_probe: Annotated[
         bool, typer.Option("--api-probe", help="Check four conventional public API-doc paths.")
     ] = False,
+    public_artifacts: Annotated[
+        bool,
+        typer.Option(
+            "--public-artifacts",
+            help="Read public favicon and security.txt files at the configured rate.",
+        ),
+    ] = False,
     content_discovery: Annotated[
         bool,
         typer.Option("--content-discovery", help="Enable wordlist paths at the configured rate."),
@@ -86,6 +93,19 @@ def scan(
     plugins_dir: Annotated[
         Path | None, typer.Option("--plugins-dir", help="Trusted local plugin directory.")
     ] = None,
+    brand_name: Annotated[
+        str, typer.Option("--brand-name", help="Brand name shown in HTML reports.")
+    ] = "Sentinel",
+    logo_url: Annotated[
+        str,
+        typer.Option(
+            "--logo-url",
+            help=(
+                "Optional HTTP(S) logo URL shown in HTML reports; it is not fetched during "
+                "scanning."
+            ),
+        ),
+    ] = "",
 ) -> None:
     """Run non-destructive checks against an explicitly authorized target."""
     if not authorized:
@@ -104,6 +124,7 @@ def scan(
                 "enable_banner_grab": True if banners else None,
                 "enable_passive_subdomains": True if passive_subdomains else None,
                 "enable_public_api_probe": True if api_probe else None,
+                "enable_public_artifact_checks": True if public_artifacts else None,
                 "enable_content_discovery": True if content_discovery else None,
                 "wordlist_path": str(wordlist) if wordlist else None,
                 "allow_private": True if allow_private else None,
@@ -125,7 +146,11 @@ def scan(
     ) as progress:
         progress.add_task("Running safe, rate-limited assessment checks…", total=None)
         report = asyncio.run(scanner.scan())
-    path = ReportWriter().write(report, output, report_format)
+    path = ReportWriter(
+        brand_name=brand_name,
+        logo_url=logo_url,
+        config_snapshot=asdict(config),
+    ).write(report, output, report_format)
     _print_summary(report.statistics, path)
 
 

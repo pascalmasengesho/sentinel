@@ -14,8 +14,10 @@ It is not an exploitation framework. Sentinel does not authenticate, bypass acce
 - Normal TLS handshake/certificate metadata; it deliberately does not force legacy protocols or enumerate ciphers
 - robots.txt and sitemap parsing without requesting robots-disallowed pages
 - Same-origin JavaScript review for endpoint candidates and redacted secret-like patterns
-- Passive technology, CDN, WAF, and hosting hints
-- Optional, low-rate public API-document and user-wordlist content discovery
+- Passive technology, CMS, framework, CDN, WAF, reverse-proxy, and hosting hints
+- Optional, low-rate public API-document, public artifact, and user-wordlist discovery
+- Enterprise HTML reporting with risk overview, charts, searchable findings, investigation guidance,
+  dark/light themes, print styling, evidence-copy controls, and branding options
 - JSON, Markdown, HTML, CSV, and PDF reporting; YAML profiles; trusted local plugins
 
 ## Installation
@@ -62,6 +64,20 @@ Passive CT lookup sends the domain name to crt.sh. It is opt-in:
 sentinel scan example.com --authorized --passive-subdomains
 ```
 
+Public artifact checks are opt-in. They request only `/favicon.ico`,
+`/.well-known/security.txt`, and `/security.txt` on the exact selected host:
+
+```bash
+sentinel scan example.com --authorized --public-artifacts --rate 0.5
+```
+
+Use custom branding for an HTML deliverable without changing scan data:
+
+```bash
+sentinel scan example.com --authorized --format html --brand-name "Acme Security" \
+  --logo-url https://assets.example/logo.svg --output reports/acme-assessment
+```
+
 Content discovery is also opt-in and requires a user-supplied, scope-appropriate wordlist:
 
 ```bash
@@ -74,7 +90,7 @@ For a private training lab only, use a profile or explicit acknowledgement:
 sentinel scan https://localhost:8443 --authorized --allow-private --no-port-scan
 ```
 
-See [the user guide](docs/user-guide.md) for all operational details, [the developer guide](docs/developer-guide.md) for local development, and [the plugin guide](docs/plugin-guide.md) for the trusted plugin interface.
+See [the user guide](docs/user-guide.md) for all operational details, [the developer guide](docs/developer-guide.md) for local development, and [the plugin guide](docs/plugin-guide.md) for the trusted plugin interface. The [enterprise roadmap and safety boundary](docs/enterprise-roadmap.md) distinguishes delivered features from planned, safe future phases.
 
 Maintainers should follow the [publishing guide](docs/publishing.md) before tagging a release.
 

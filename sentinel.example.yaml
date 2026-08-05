@@ -8,6 +8,7 @@ enable_port_scan: true
 enable_banner_grab: false
 enable_passive_subdomains: false
 enable_public_api_probe: false
+enable_public_artifact_checks: false
 enable_content_discovery: false
 max_directory_requests: 50
 max_sitemap_urls: 100
@@ -22,4 +23,3 @@ profiles:
     allow_private: true
     rate_limit_per_second: 2
     enable_port_scan: true
-

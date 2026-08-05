@@ -20,6 +20,8 @@ The scan performs DNS, a root HTTP request and an OPTIONS request, normal TLS me
 
 `--api-probe` checks only `/openapi.json`, `/swagger.json`, `/api-docs`, and `/graphql`; it makes GET requests and reports 200, 401, and 403 responses. Enable it only if those requests are in scope.
 
+`--public-artifacts` reads only `/favicon.ico`, `/.well-known/security.txt`, and `/security.txt` on the selected host. It records a SHA-256 favicon fingerprint and published security contact metadata; it does not follow contacts, submit forms, or request discovered paths.
+
 `--content-discovery --wordlist PATH` requests up to `max_directory_requests` paths from your controlled wordlist. Keep it slow and use only paths and rate limits permitted by the program.
 
 `--banners` reads up to 256 bytes after an open TCP connection only when a service sends a banner first. It never sends an application payload.
@@ -38,3 +40,8 @@ CLI flags override settings in the file. `sentinel config` prints default values
 
 Use reports as a research notebook. Missing headers can be intentional, WAF/CDN detection is heuristic, and a secret-like JavaScript pattern is redacted because it needs careful manual validation. The report does not assign CVSS; score only a verified, scoped finding after you understand impact.
 
+## Enterprise HTML reports
+
+HTML reports preserve the same scan data as JSON while adding an executive summary, transparent risk calculation, severity charts, searchable and sortable findings, structured module summaries, dark/light themes, print styling, and an Investigation Assistant. The Investigation Assistant never claims exploitation: it records why an observation might matter, what evidence is missing, and safe manual validation steps.
+
+Use `--brand-name` and `--logo-url` with `--format html` to customize the presentation. The logo URL is embedded in the report only; Sentinel does not fetch it during scanning.
