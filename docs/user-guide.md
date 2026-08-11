@@ -14,6 +14,16 @@ sentinel scan https://app.example.com --authorized --format markdown --output re
 
 The scan performs DNS, a root HTTP request and an OPTIONS request, normal TLS metadata collection for HTTPS, a small TCP-connect scan, robots/sitemap parsing, root-page technology/header inspection, and same-host scripts. Default request starts are limited to one per second.
 
+The HTTP analysis also records cookie names and non-sensitive attributes, then flags missing
+`Secure`, session-like `HttpOnly`, and explicit `SameSite` controls where appropriate. It inspects
+the `Allow` response header without sending state-changing methods, and reviews observed CSP/HSTS
+policy quality. Cookie values are redacted and never saved in report evidence.
+
+Sentinel also maps public form actions, password-form metadata, authentication links, GraphQL
+references, and WebSocket URLs from the root page. It does not submit a form, authenticate, open a
+WebSocket, or probe a GraphQL candidate. A password form using `GET`, a password form posting to
+HTTP, or a cross-origin form action is reported as an observation for manual, in-scope review.
+
 ## Optional features
 
 `--passive-subdomains` queries crt.sh. This is passive with respect to the target but shares the domain name with that public service.
@@ -45,3 +55,30 @@ Use reports as a research notebook. Missing headers can be intentional, WAF/CDN 
 HTML reports preserve the same scan data as JSON while adding an executive summary, transparent risk calculation, severity charts, searchable and sortable findings, structured module summaries, dark/light themes, print styling, and an Investigation Assistant. The Investigation Assistant never claims exploitation: it records why an observation might matter, what evidence is missing, and safe manual validation steps.
 
 Use `--brand-name` and `--logo-url` with `--format html` to customize the presentation. The logo URL is embedded in the report only; Sentinel does not fetch it during scanning.
+
+## Local research workspace
+
+Pass `--workspace PATH` to retain a completed scan in a local SQLite file. This is opt-in and
+does not create any additional requests or transmit stored reports. It stores the completed scan
+snapshot and its effective configuration so future investigation can be reproducible.
+
+```bash
+sentinel scan https://app.example.com --authorized --workspace .sentinel/app.db
+sentinel workspace history .sentinel/app.db --target https://app.example.com/
+sentinel workspace compare .sentinel/app.db 1 2 --output reports/app-changes.json
+sentinel workspace graph .sentinel/app.db 2 --output reports/app-graph.json
+```
+
+`workspace compare` reports new and no-longer-observed scan records plus changed module data. It
+does not say that a change is a vulnerability. `workspace graph` produces stable JSON nodes and
+relationships for a future interactive graph viewer; it derives domains, DNS, passive subdomains,
+technologies, certificates, cookies, ports, JavaScript, APIs, published URLs, artifacts, and
+observations only from the saved report.
+
+Add and search manual notes locally:
+
+```bash
+sentinel workspace note .sentinel/app.db --target https://app.example.com/ \
+  --text "Confirm API behavior safely" --tags api,follow-up --favorite
+sentinel workspace notes .sentinel/app.db follow-up
+```

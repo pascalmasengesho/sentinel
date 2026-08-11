@@ -7,6 +7,11 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
+_DEFAULT_NOTICE = (
+    "Sentinel performs only non-destructive checks. Results are observations, "
+    "not proof of a vulnerability. Verify scope and findings manually."
+)
+
 
 class Severity(StrEnum):
     """Severity levels used for observations, not exploitability claims."""
@@ -53,10 +58,7 @@ class ScanReport:
     version: str
     modules: list[ModuleResult]
     statistics: dict[str, int]
-    notice: str = (
-        "Sentinel performs only non-destructive checks. Results are observations, "
-        "not proof of a vulnerability. Verify scope and findings manually."
-    )
+    notice: str = _DEFAULT_NOTICE
 
     @classmethod
     def create(cls, target: str, authorized: bool, version: str) -> ScanReport:
@@ -72,6 +74,80 @@ class ScanReport:
             statistics={},
         )
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ScanReport:
+        """Restore a report exported by Sentinel for offline rendering or local history."""
+        raw_modules = data.get("modules", [])
+        modules = (
+            [_module_result_from_dict(module) for module in raw_modules if isinstance(module, dict)]
+            if isinstance(raw_modules, list)
+            else []
+        )
+        raw_statistics = data.get("statistics", {})
+        statistics = (
+            {str(key): _as_int(value) for key, value in raw_statistics.items()}
+            if isinstance(raw_statistics, dict)
+            else {}
+        )
+        return cls(
+            target=str(data.get("target", "")),
+            started_at=str(data.get("started_at", "")),
+            finished_at=str(data.get("finished_at", "")),
+            authorized=bool(data.get("authorized", False)),
+            version=str(data.get("version", "unknown")),
+            modules=modules,
+            statistics=statistics,
+            notice=str(data.get("notice", _DEFAULT_NOTICE)),
+        )
+
     def as_dict(self) -> dict[str, Any]:
         """Return a serialization-friendly representation."""
         return asdict(self)
+
+
+def _module_result_from_dict(data: dict[str, Any]) -> ModuleResult:
+    """Create a typed module result from an exported JSON object."""
+    raw_findings = data.get("findings", [])
+    findings = (
+        [_finding_from_dict(finding) for finding in raw_findings if isinstance(finding, dict)]
+        if isinstance(raw_findings, list)
+        else []
+    )
+    raw_errors = data.get("errors", [])
+    errors = [str(error) for error in raw_errors] if isinstance(raw_errors, list) else []
+    raw_module_data = data.get("data", {})
+    return ModuleResult(
+        module=str(data.get("module", "unknown")),
+        data=raw_module_data if isinstance(raw_module_data, dict) else {},
+        findings=findings,
+        errors=errors,
+        duration_ms=_as_int(data.get("duration_ms", 0)),
+    )
+
+
+def _finding_from_dict(data: dict[str, Any]) -> Finding:
+    """Create a typed finding while treating unknown historical severities as info."""
+    try:
+        severity = Severity(str(data.get("severity", Severity.INFO)).lower())
+    except ValueError:
+        severity = Severity.INFO
+    return Finding(
+        title=str(data.get("title", "Untitled observation")),
+        severity=severity,
+        description=str(data.get("description", "")),
+        evidence=str(data.get("evidence", "")),
+        recommendation=str(data.get("recommendation", "")),
+        module=str(data.get("module", "unknown")),
+        cvss=str(data.get("cvss", "")),
+        url=str(data.get("url", "")),
+    )
+
+
+def _as_int(value: object) -> int:
+    """Return a safe integer for historical report fields."""
+    if not isinstance(value, (int, float, str)):
+        return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from sentinel.models import Finding, ModuleResult, Severity
 from sentinel.modules.base import ScanContext, ScanModule, response_or_error
 
@@ -90,6 +92,7 @@ class HeaderModule(ScanModule):
                     url=response.url,
                 )
             )
+        findings.extend(self._policy_findings(response.url, response.headers))
         return ModuleResult(
             module=self.name,
             data={
@@ -100,3 +103,67 @@ class HeaderModule(ScanModule):
             },
             findings=findings,
         )
+
+    @staticmethod
+    def _policy_findings(url: str, headers: dict[str, str]) -> list[Finding]:
+        """Assess observed policy quality without injecting requests or browser payloads."""
+        findings: list[Finding] = []
+        csp = headers.get("content-security-policy", "")
+        normalized_csp = csp.lower()
+        if "'unsafe-eval'" in normalized_csp or "'unsafe-inline'" in normalized_csp:
+            findings.append(
+                Finding(
+                    title="Content-Security-Policy permits unsafe script behavior",
+                    severity=Severity.LOW,
+                    description=(
+                        "The observed Content-Security-Policy includes unsafe-inline or "
+                        "unsafe-eval. This can weaken browser-side defense in depth."
+                    ),
+                    evidence=f"Content-Security-Policy: {csp}",
+                    recommendation=(
+                        "Replace unsafe script allowances with nonces, hashes, and "
+                        "externalized scripts where application behavior permits."
+                    ),
+                    module=HeaderModule.name,
+                    url=url,
+                )
+            )
+        if re.search(r"(?:default-src|script-src)\s+[^;]*\*", normalized_csp):
+            findings.append(
+                Finding(
+                    title="Content-Security-Policy has a wildcard script source",
+                    severity=Severity.LOW,
+                    description=(
+                        "The observed policy permits a wildcard source for default-src or "
+                        "script-src, which reduces origin restriction."
+                    ),
+                    evidence=f"Content-Security-Policy: {csp}",
+                    recommendation=(
+                        "Use a reviewed allowlist of required script origins and avoid broad "
+                        "wildcards where possible."
+                    ),
+                    module=HeaderModule.name,
+                    url=url,
+                )
+            )
+        hsts = headers.get("strict-transport-security", "")
+        match = re.search(r"max-age\s*=\s*(\d+)", hsts, re.IGNORECASE)
+        if match and int(match.group(1)) < 15_552_000:
+            findings.append(
+                Finding(
+                    title="HSTS policy has a short max-age",
+                    severity=Severity.INFO,
+                    description=(
+                        "The observed HSTS max-age is shorter than 180 days. Short durations "
+                        "reduce long-term downgrade resistance after an initial HTTPS visit."
+                    ),
+                    evidence=f"Strict-Transport-Security: {hsts}",
+                    recommendation=(
+                        "Increase max-age gradually after validating HTTPS support across the "
+                        "intended scope."
+                    ),
+                    module=HeaderModule.name,
+                    url=url,
+                )
+            )
+        return findings

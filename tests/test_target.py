@@ -12,6 +12,11 @@ def test_normalizes_bare_domain() -> None:
     assert target.origin == "https://example.com"
 
 
+def test_rejects_scheme_missing_a_colon() -> None:
+    with pytest.raises(TargetValidationError, match="scheme is missing"):
+        normalize_target("https//launchdarkly.com/docs")
+
+
 def test_rejects_private_ip_without_explicit_lab_flag() -> None:
     with pytest.raises(TargetValidationError, match="Private or reserved"):
         normalize_target("http://127.0.0.1")

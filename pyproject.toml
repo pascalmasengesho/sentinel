@@ -1,5 +1,7 @@
 [build-system]
-requires = ["hatchling>=1.25"]
+# Hatchling 1.30+ emits Core Metadata 2.5, which Twine does not yet validate.
+# Keep release artifacts compatible with the package verification workflow.
+requires = ["hatchling>=1.25,<1.30"]
 build-backend = "hatchling.build"
 
 [project]

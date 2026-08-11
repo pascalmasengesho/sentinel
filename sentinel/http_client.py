@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urljoin, urlsplit
 
@@ -29,6 +29,7 @@ class HttpResponse:
     http_version: str
     redirect_chain: list[str]
     content: bytes = b""
+    set_cookie_headers: list[str] = field(default_factory=list)
 
 
 class RateLimiter:
@@ -96,6 +97,7 @@ class SafeHttpClient:
                     http_version=response.http_version,
                     redirect_chain=redirects,
                     content=response.content[: self.config.max_response_bytes],
+                    set_cookie_headers=response.headers.get_list("set-cookie"),
                 )
             location = response.headers.get("location")
             if not location:
@@ -107,6 +109,7 @@ class SafeHttpClient:
                     http_version=response.http_version,
                     redirect_chain=redirects,
                     content=response.content[: self.config.max_response_bytes],
+                    set_cookie_headers=response.headers.get_list("set-cookie"),
                 )
             redirects.append(str(response.url))
             current_url = urljoin(str(response.url), location)

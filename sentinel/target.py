@@ -43,6 +43,10 @@ def normalize_target(raw: str, allow_private: bool = False) -> Target:
     if not candidate:
         raise TargetValidationError("A target is required.")
     if "://" not in candidate:
+        if candidate.lower().startswith(("http//", "https//")):
+            raise TargetValidationError(
+                "The target scheme is missing ':'. Use http://example.com or https://example.com."
+            )
         candidate = f"https://{candidate}"
 
     parsed = urlsplit(candidate)

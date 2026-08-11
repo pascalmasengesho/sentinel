@@ -20,12 +20,14 @@ from sentinel.modules import (
     ReconModule,
     RobotsModule,
     SitemapModule,
+    SurfaceModule,
     TechnologyModule,
     TlsModule,
     WordlistModule,
 )
 from sentinel.modules.base import ScanContext, ScanModule
 from sentinel.plugins import load_plugins
+from sentinel.prioritization import build_research_priorities
 from sentinel.target import Target, normalize_target
 
 
@@ -56,6 +58,7 @@ class Scanner:
                 ReconModule(),
                 HeaderModule(),
                 TechnologyModule(),
+                SurfaceModule(),
                 RobotsModule(),
                 JavaScriptModule(),
             ]
@@ -71,6 +74,8 @@ class Scanner:
                 report.modules.append(ModuleResult(module="plugins", errors=plugin_errors))
             if plugins:
                 report.modules.extend(await self._run_stage(plugins, context))
+
+            report.modules.append(build_research_priorities(report.modules))
 
         report.finished_at = datetime.now(UTC).isoformat()
         report.statistics = self._statistics(report)

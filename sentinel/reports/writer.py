@@ -26,9 +26,11 @@ _MODULE_ICONS = {
     "javascript": "{ }",
     "plugins": "✦",
     "ports": "◌",
+    "research_priorities": "◆",
     "recon": "⌁",
     "robots": "⌂",
     "sitemap": "≋",
+    "surface": "◫",
     "technology": "◈",
     "tls": "◇",
     "wordlist": "≡",
@@ -462,6 +464,7 @@ class ReportWriter:
         duration = sum(module.duration_ms for module in report.modules)
         metrics = self._scan_metrics(report)
         configuration_facts = self._data_facts(self.config_snapshot)
+        priority_cards = self._priority_cards(report)
         severity_legend = "".join(
             self._severity_legend(level, severity_counts[level]) for level in _SEVERITY_ORDER
         )
@@ -506,7 +509,7 @@ class ReportWriter:
 
   <nav class="sticky-nav" aria-label="Report navigation"><div class="sticky-nav-inner">
     <a href="#overview">Overview</a><a href="#risk">Risk</a><a href="#findings">Findings</a>
-    <a href="#investigation">Investigation Assistant</a><a href="#configuration">Configuration</a><a href="#modules">Modules</a>
+    <a href="#priorities">Priorities</a><a href="#investigation">Investigation Assistant</a><a href="#configuration">Configuration</a><a href="#modules">Modules</a>
     <a href="#timeline">Timeline</a><a href="#appendix">Appendix</a>
   </div></nav>
 
@@ -535,6 +538,11 @@ class ReportWriter:
         <article class="card"><h3>Severity distribution</h3><div class="chart-wrap"><canvas data-severity-chart aria-label="Severity distribution chart" role="img"></canvas></div><div class="legend">{severity_legend}</div></article>
       </div>
       <article class="card" style="margin-top:1rem"><h3>Module execution profile</h3><div class="bar-list" style="margin-top:1rem">{module_bars}</div></article>
+    </section>
+
+    <section class="section" id="priorities" aria-labelledby="priorities-heading">
+      <div class="section-heading"><div><h2 id="priorities-heading">Research priorities</h2><p>Deterministic correlation of completed scan data to guide safe manual investigation. These are not vulnerability claims.</p></div></div>
+      <div class="grid module-grid">{priority_cards}</div>
     </section>
 
     <section class="section" id="findings" aria-labelledby="findings-heading">
@@ -582,6 +590,36 @@ class ReportWriter:
     def _severity_counts(self, findings: list[Finding]) -> dict[str, int]:
         counts = Counter(self._severity(finding) for finding in findings)
         return {level: counts[level] for level in _SEVERITY_ORDER}
+
+    def _priority_cards(self, report: ScanReport) -> str:
+        """Render deterministic research priorities without turning them into findings."""
+        priority_module = next(
+            (module for module in report.modules if module.module == "research_priorities"),
+            None,
+        )
+        if priority_module is None:
+            return '<p class="empty">No cross-module priorities were generated for this scan.</p>'
+        priorities = priority_module.data.get("priorities", [])
+        if not isinstance(priorities, list) or not priorities:
+            return '<p class="empty">No manual-investigation priorities were generated from the observed data.</p>'
+        cards = []
+        for priority in priorities:
+            if not isinstance(priority, dict):
+                continue
+            title = self._escape(priority.get("title", "Research priority"))
+            tier = self._escape(priority.get("tier", "Manual review"))
+            confidence = self._escape(priority.get("confidence", "Observed context"))
+            next_step = self._escape(priority.get("safe_next_step", "Validate manually in scope."))
+            evidence = priority.get("evidence", [])
+            evidence_items = (
+                self._list_items([str(item) for item in evidence])
+                if isinstance(evidence, list)
+                else ""
+            )
+            cards.append(
+                f"""<article class="card module"><div class="module-head"><span class="module-icon" aria-hidden="true">◆</span><h3 class="module-name">{title}</h3><span class="module-state">{tier}</span></div><p class="muted">Confidence: {confidence}</p><details open><summary>Observed context</summary><ul>{evidence_items}</ul></details><details><summary>Safe next step</summary><p>{next_step}</p></details></article>"""
+            )
+        return "".join(cards) or '<p class="empty">No valid research priorities were generated.</p>'
 
     @staticmethod
     def _scan_metrics(report: ScanReport) -> dict[str, int]:

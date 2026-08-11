@@ -10,6 +10,7 @@ from sentinel.modules.ports import PortModule
 from sentinel.modules.recon import ReconModule
 from sentinel.modules.robots import RobotsModule
 from sentinel.modules.sitemap import SitemapModule
+from sentinel.modules.surface import SurfaceModule
 from sentinel.modules.tech import TechnologyModule
 from sentinel.modules.tls import TlsModule
 from sentinel.modules.wordlist import WordlistModule
@@ -25,6 +26,7 @@ __all__ = [
     "ReconModule",
     "RobotsModule",
     "SitemapModule",
+    "SurfaceModule",
     "TechnologyModule",
     "TlsModule",
     "WordlistModule",

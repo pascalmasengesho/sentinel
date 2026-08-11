@@ -45,12 +45,21 @@ def test_renders_json_markdown_html_and_csv_reports() -> None:
     assert "Missing header" in writer.to_csv(report)
 
 
+def test_report_can_be_restored_for_offline_rerendering() -> None:
+    report = _report()
+
+    restored = ScanReport.from_dict(json.loads(json.dumps(report.as_dict())))
+
+    assert restored.as_dict() == report.as_dict()
+
+
 def test_html_report_includes_enterprise_dashboard_and_investigation_guidance() -> None:
     rendered = ReportWriter().to_html(_report())
 
     assert 'data-theme="dark"' in rendered
     assert "Executive summary" in rendered
     assert "Risk overview" in rendered
+    assert "Research priorities" in rendered
     assert "Critical severity" in rendered
     assert "URLs discovered" in rendered
     assert "Investigation Assistant" in rendered

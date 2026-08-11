@@ -23,13 +23,18 @@ Every future capability must preserve that boundary.
 - Expanded passive root-response technology hints for CMS, frameworks, libraries,
   analytics, CDN/edge, WAF, reverse proxy/container, web-server, and
   `X-Powered-By` indicators.
+- Optional local SQLite research workspaces with immutable scan snapshots, scan history,
+  local notes/tags/favorites, deterministic comparison, and visualization-neutral knowledge-graph
+  export. Workspace data is never transmitted by Sentinel.
+- A deterministic Research Prioritization Engine that correlates observed authentication, API,
+  client-side, passive-asset, and public-metadata signals into safe manual-review queues.
 
 ## Planned safe phases
 
 | Stage | Scope | Guardrails |
 | --- | --- | --- |
 | Safe discovery refinement | Optional same-host crawler with explicit page/depth/time limits, robots policy controls, canonical URL normalization, and duplicate-content detection. | Off by default; no login flows, form submission, or unrestricted crawling. |
-| Local history and comparison | SQLite scan history, finding fingerprints, result-diff reports, resume metadata, and scheduled local rescans. | Local-only by default; no central collection of target data. |
+| Workspace refinement | Resume metadata, scheduled local rescans, screenshot evidence, bookmarks, richer search, and an interactive graph viewer over the existing local graph export. | Local-only by default; no central collection of target data, and screenshot capture remains explicit opt-in. |
 | Evidence workflow | Opt-in screenshots of public pages, redaction-aware evidence bundles, and bug-bounty report templates. | No authenticated capture or sensitive-data collection without explicit user action. |
 | Team deployment | Optional web dashboard, REST API, authentication, roles, notes, queueing, and live progress. | Separate deployment profile, secure defaults, auditable access controls, and no new active checks. |
 | Distribution and operations | Release automation, package verification, container hardening, upgrade notices, and user documentation. | Publish only artifacts that pass the quality gate and preserve the authorized-use notice. |

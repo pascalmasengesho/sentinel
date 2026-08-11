@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import sqlite3
 from dataclasses import asdict
 from pathlib import Path
 from typing import Annotated
@@ -13,15 +15,43 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from sentinel.config import ScanConfig, apply_overrides, load_config
+from sentinel.models import ScanReport
 from sentinel.reports import ReportFormat, ReportWriter
 from sentinel.scanner import Scanner
+from sentinel.workspace import WorkspaceStore
 
 app = typer.Typer(
     add_completion=False,
     help="Sentinel: safe, rate-limited reconnaissance for authorized security assessments.",
+    invoke_without_command=True,
     no_args_is_help=True,
 )
 console = Console()
+workspace_app = typer.Typer(
+    help="Inspect local, authorized-assessment research workspaces.",
+    no_args_is_help=True,
+)
+report_app = typer.Typer(
+    help="Render existing Sentinel JSON reports without rescanning a target.",
+    no_args_is_help=True,
+)
+app.add_typer(workspace_app, name="workspace")
+app.add_typer(report_app, name="report")
+
+
+@app.callback()
+def main(
+    version: Annotated[
+        bool,
+        typer.Option("--version", help="Show the installed Sentinel version and exit."),
+    ] = False,
+) -> None:
+    """Sentinel: safe, rate-limited reconnaissance for authorized assessments."""
+    if version:
+        from sentinel import __version__
+
+        console.print(__version__)
+        raise typer.Exit()
 
 
 @app.command()
@@ -106,6 +136,13 @@ def scan(
             ),
         ),
     ] = "",
+    workspace: Annotated[
+        Path | None,
+        typer.Option(
+            "--workspace",
+            help="Optional local SQLite workspace used to retain this completed scan.",
+        ),
+    ] = None,
 ) -> None:
     """Run non-destructive checks against an explicitly authorized target."""
     if not authorized:
@@ -152,6 +189,15 @@ def scan(
         config_snapshot=asdict(config),
     ).write(report, output, report_format)
     _print_summary(report.statistics, path)
+    if workspace:
+        try:
+            scan_id = WorkspaceStore(workspace).save_scan(report, asdict(config))
+        except (OSError, ValueError, sqlite3.Error) as exc:
+            console.print(
+                f"[yellow]Workspace warning:[/] Scan report was written, but not stored: {exc}"
+            )
+        else:
+            console.print(f"[dim]Stored scan {scan_id} in local workspace {workspace}.[/]")
 
 
 @app.command("config")
@@ -159,6 +205,182 @@ def show_config() -> None:
     """Print the default configuration keys and conservative values."""
     for key, value in asdict(ScanConfig()).items():
         console.print(f"{key}: {value}")
+
+
+@report_app.command("render")
+def report_render(
+    source: Annotated[Path, typer.Argument(help="Existing Sentinel JSON report.")],
+    output: Annotated[
+        Path, typer.Option("--output", "-o", help="Rendered report file; suffix is optional.")
+    ] = Path("reports/sentinel-report"),
+    report_format: Annotated[
+        ReportFormat, typer.Option("--format", "-f", case_sensitive=False)
+    ] = ReportFormat.HTML,
+    brand_name: Annotated[
+        str, typer.Option("--brand-name", help="Brand name shown in HTML reports.")
+    ] = "Sentinel",
+    logo_url: Annotated[
+        str, typer.Option("--logo-url", help="Optional HTTP(S) logo URL for HTML reports.")
+    ] = "",
+) -> None:
+    """Render an existing JSON report offline; no scanner module is executed."""
+    try:
+        loaded = json.loads(source.read_text(encoding="utf-8"))
+        if not isinstance(loaded, dict):
+            raise ValueError("A Sentinel JSON report must contain an object at the top level.")
+        report = ScanReport.from_dict(loaded)
+        if not report.target:
+            raise ValueError("The Sentinel JSON report does not contain a target.")
+        path = ReportWriter(brand_name=brand_name, logo_url=logo_url).write(
+            report, output, report_format
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        console.print(f"[bold red]Report error:[/] {exc}")
+        raise typer.Exit(code=2) from exc
+    console.print(f"[green]Rendered report:[/] {path}")
+
+
+@workspace_app.command("history")
+def workspace_history(
+    workspace: Annotated[Path, typer.Argument(help="SQLite workspace path.")],
+    target: Annotated[
+        str | None, typer.Option("--target", help="Show an exact target only.")
+    ] = None,
+    limit: Annotated[int, typer.Option("--limit", min=1, max=500)] = 20,
+) -> None:
+    """List saved scans without sending any network requests."""
+    try:
+        scans = WorkspaceStore(workspace).list_scans(target=target, limit=limit)
+    except (OSError, ValueError, sqlite3.Error) as exc:
+        console.print(f"[bold red]Workspace error:[/] {exc}")
+        raise typer.Exit(code=2) from exc
+    table = Table(title="Sentinel local scan history")
+    table.add_column("ID", justify="right")
+    table.add_column("Target")
+    table.add_column("Stored")
+    table.add_column("Findings", justify="right")
+    table.add_column("Errors", justify="right")
+    for scan in scans:
+        table.add_row(
+            str(scan.scan_id),
+            scan.target,
+            scan.stored_at,
+            str(scan.findings_count),
+            str(scan.errors_count),
+        )
+    if not scans:
+        console.print("[dim]No scans are stored in this workspace.[/]")
+        return
+    console.print(table)
+
+
+@workspace_app.command("compare")
+def workspace_compare(
+    workspace: Annotated[Path, typer.Argument(help="SQLite workspace path.")],
+    previous_scan_id: Annotated[int, typer.Argument(help="Older local scan ID.")],
+    current_scan_id: Annotated[int, typer.Argument(help="Newer local scan ID.")],
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Optional JSON comparison output.")
+    ] = None,
+) -> None:
+    """Compare two exact-target scans without classifying changes as vulnerabilities."""
+    try:
+        comparison = WorkspaceStore(workspace).compare_scans(previous_scan_id, current_scan_id)
+    except (OSError, ValueError, sqlite3.Error) as exc:
+        console.print(f"[bold red]Workspace error:[/] {exc}")
+        raise typer.Exit(code=2) from exc
+    payload = comparison.as_dict()
+    rendered = json.dumps(payload, indent=2)
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(rendered, encoding="utf-8")
+        console.print(f"[green]Wrote comparison:[/] {output}")
+    else:
+        console.print_json(rendered)
+
+
+@workspace_app.command("graph")
+def workspace_graph(
+    workspace: Annotated[Path, typer.Argument(help="SQLite workspace path.")],
+    scan_id: Annotated[int, typer.Argument(help="Local scan ID to model.")],
+    output: Annotated[
+        Path, typer.Option("--output", "-o", help="Knowledge-graph JSON output.")
+    ] = Path("knowledge-graph.json"),
+) -> None:
+    """Export a visualization-neutral graph from one saved scan without new traffic."""
+    try:
+        graph = WorkspaceStore(workspace).graph_for_scan(scan_id)
+    except (OSError, ValueError, sqlite3.Error) as exc:
+        console.print(f"[bold red]Workspace error:[/] {exc}")
+        raise typer.Exit(code=2) from exc
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(graph.as_dict(), indent=2), encoding="utf-8")
+    statistics = graph.as_dict()["statistics"]
+    assert isinstance(statistics, dict)
+    console.print(
+        f"[green]Wrote graph:[/] {output} "
+        f"({statistics['nodes']} nodes, {statistics['edges']} relationships)"
+    )
+
+
+@workspace_app.command("note")
+def workspace_note(
+    workspace: Annotated[Path, typer.Argument(help="SQLite workspace path.")],
+    target: Annotated[
+        str, typer.Option("--target", help="Target or workspace label for the note.")
+    ],
+    text: Annotated[str, typer.Option("--text", help="Local investigation note text.")],
+    tags: Annotated[str, typer.Option("--tags", help="Optional comma-separated local tags.")] = "",
+    scan_id: Annotated[
+        int | None, typer.Option("--scan-id", help="Optional related local scan ID.")
+    ] = None,
+    favorite: Annotated[
+        bool, typer.Option("--favorite", help="Mark the note as a favorite.")
+    ] = False,
+) -> None:
+    """Store a local manual-investigation note without transmitting it."""
+    try:
+        note_id = WorkspaceStore(workspace).add_note(
+            target=target,
+            content=text,
+            tags=tags.split(","),
+            scan_id=scan_id,
+            favorite=favorite,
+        )
+    except (OSError, ValueError, sqlite3.Error) as exc:
+        console.print(f"[bold red]Workspace error:[/] {exc}")
+        raise typer.Exit(code=2) from exc
+    console.print(f"[green]Stored local note {note_id}.[/]")
+
+
+@workspace_app.command("notes")
+def workspace_notes(
+    workspace: Annotated[Path, typer.Argument(help="SQLite workspace path.")],
+    query: Annotated[str, typer.Argument(help="Text or tag to search locally.")],
+    limit: Annotated[int, typer.Option("--limit", min=1, max=500)] = 50,
+) -> None:
+    """Search local notes, targets, and tags without using external services."""
+    try:
+        notes = WorkspaceStore(workspace).search_notes(query, limit=limit)
+    except (OSError, ValueError, sqlite3.Error) as exc:
+        console.print(f"[bold red]Workspace error:[/] {exc}")
+        raise typer.Exit(code=2) from exc
+    if not notes:
+        console.print("[dim]No local notes match that query.[/]")
+        return
+    table = Table(title="Sentinel local notes")
+    table.add_column("ID", justify="right")
+    table.add_column("Target")
+    table.add_column("Tags")
+    table.add_column("Note")
+    for note in notes:
+        table.add_row(
+            str(note.note_id),
+            note.target,
+            ", ".join(note.tags) or "—",
+            note.content,
+        )
+    console.print(table)
 
 
 def _print_summary(statistics: dict[str, int], path: Path) -> None:

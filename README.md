@@ -11,13 +11,21 @@ It is not an exploitation framework. Sentinel does not authenticate, bypass acce
 - Optional passive CT subdomain lookup and public WHOIS metadata
 - Bounded TCP-connect scan, with optional banner reads only when a service sends one first
 - Root HTTP, security headers, cookies, redirects, cache/compression, and advertised methods
+- Cookie-attribute hardening, CSP/HSTS posture, and advertised-method observations from responses
+  already collected; cookie values are always omitted from findings and reports
 - Normal TLS handshake/certificate metadata; it deliberately does not force legacy protocols or enumerate ciphers
 - robots.txt and sitemap parsing without requesting robots-disallowed pages
 - Same-origin JavaScript review for endpoint candidates and redacted secret-like patterns
+- Passive mapping of public forms, authentication entry points, GraphQL, and WebSocket candidates;
+  Sentinel only observes the root page and never submits forms or opens those connections
+- Deterministic research priorities that correlate completed module output into safe manual-review
+  queues; they never assert a vulnerability or recommend exploitation
 - Passive technology, CMS, framework, CDN, WAF, reverse-proxy, and hosting hints
 - Optional, low-rate public API-document, public artifact, and user-wordlist discovery
 - Enterprise HTML reporting with risk overview, charts, searchable findings, investigation guidance,
   dark/light themes, print styling, evidence-copy controls, and branding options
+- Optional local SQLite research workspaces with scan history, note search, scan comparison, and
+  knowledge-graph JSON export; these features never send stored data elsewhere
 - JSON, Markdown, HTML, CSV, and PDF reporting; YAML profiles; trusted local plugins
 
 ## Installation
@@ -88,6 +96,15 @@ For a private training lab only, use a profile or explicit acknowledgement:
 
 ```bash
 sentinel scan https://localhost:8443 --authorized --allow-private --no-port-scan
+```
+
+Keep local history for an authorized target, compare two saved scans, or export its graph data:
+
+```bash
+sentinel scan https://example.com --authorized --workspace .sentinel/research.db
+sentinel workspace history .sentinel/research.db
+sentinel workspace compare .sentinel/research.db 1 2 --output reports/change-report.json
+sentinel workspace graph .sentinel/research.db 2 --output reports/knowledge-graph.json
 ```
 
 See [the user guide](docs/user-guide.md) for all operational details, [the developer guide](docs/developer-guide.md) for local development, and [the plugin guide](docs/plugin-guide.md) for the trusted plugin interface. The [enterprise roadmap and safety boundary](docs/enterprise-roadmap.md) distinguishes delivered features from planned, safe future phases.
