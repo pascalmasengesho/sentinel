@@ -249,7 +249,8 @@ class WorkspaceStore:
 
     def _initialize(self) -> None:
         with self._connection() as connection:
-            connection.executescript("""
+            connection.executescript(
+                """
                 CREATE TABLE IF NOT EXISTS scans (
                     id INTEGER PRIMARY KEY,
                     target TEXT NOT NULL,
@@ -276,7 +277,8 @@ class WorkspaceStore:
                 );
                 CREATE INDEX IF NOT EXISTS notes_target_created_at
                     ON notes(target, created_at DESC);
-                """)
+                """
+            )
 
     def _connection(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path)
