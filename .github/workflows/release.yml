@@ -57,7 +57,7 @@ jobs:
 
   publish-aur:
     name: Publish AUR recipe
-    needs: [build, publish-pypi]
+    needs: build
     runs-on: ubuntu-latest
     env:
       AUR_PACKAGE_NAME: sentinel-bounty
@@ -96,7 +96,7 @@ jobs:
 
   github-release:
     name: Create GitHub release
-    needs: [build, publish-pypi]
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
