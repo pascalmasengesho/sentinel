@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 - 2026-08-30
 
 - Added local YAML program-scope manifests with host/path exclusions, rate caps, and enforced
   scope context in reports.

@@ -1,5 +1,5 @@
 name: sentinel-bounty
-version: "0.2.0"
+version: "0.3.0"
 summary: Safe reconnaissance for authorized security assessments
 description: |
   Sentinel is a rate-limited command-line assistant for authorized security

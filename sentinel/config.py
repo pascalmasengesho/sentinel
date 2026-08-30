@@ -21,7 +21,7 @@ class ScanConfig:
     verify_tls: bool = True
     max_redirects: int = 3
     max_response_bytes: int = 1_000_000
-    user_agent: str = "Sentinel/0.2 (authorized security assessment)"
+    user_agent: str = "Sentinel/0.3 (authorized security assessment)"
     ports: list[int] = field(default_factory=lambda: list(DEFAULT_PORTS))
     enable_port_scan: bool = True
     enable_banner_grab: bool = False
