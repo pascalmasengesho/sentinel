@@ -1,10 +1,15 @@
 name: sentinel-bounty
 version: "0.3.0"
+title: Sentinel
 summary: Safe reconnaissance for authorized security assessments
 description: |
   Sentinel is a rate-limited command-line assistant for authorized security
   assessments and bug bounty programs. It performs non-destructive discovery,
   analysis, and reporting only.
+contact: https://github.com/pascalmasengesho/sentinel
+issues: https://github.com/pascalmasengesho/sentinel/issues
+source-code: https://github.com/pascalmasengesho/sentinel
+website: https://github.com/pascalmasengesho/sentinel
 license: MIT
 grade: stable
 confinement: strict
