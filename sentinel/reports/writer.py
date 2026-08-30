@@ -475,6 +475,7 @@ class ReportWriter:
         metrics = self._scan_metrics(report)
         configuration_facts = self._data_facts(self.config_snapshot)
         priority_cards = self._priority_cards(report)
+        inventory = self._inventory_section(report)
         severity_legend = "".join(
             self._severity_legend(level, severity_counts[level]) for level in _SEVERITY_ORDER
         )
@@ -518,7 +519,7 @@ class ReportWriter:
   </header>
 
   <nav class="sticky-nav" aria-label="Report navigation"><div class="sticky-nav-inner">
-    <a href="#overview">Overview</a><a href="#risk">Risk</a><a href="#findings">Findings</a>
+    <a href="#overview">Overview</a><a href="#risk">Risk</a><a href="#inventory">Inventory</a><a href="#findings">Findings</a>
     <a href="#priorities">Priorities</a><a href="#investigation">Investigation Assistant</a><a href="#configuration">Configuration</a><a href="#modules">Modules</a>
     <a href="#timeline">Timeline</a><a href="#appendix">Appendix</a>
   </div></nav>
@@ -539,6 +540,11 @@ class ReportWriter:
         <article class="card metric" style="--metric-color:var(--brand-strong)"><span class="metric-label">Open ports</span><div class="metric-value">{metrics["ports"]}</div><p class="metric-note">Bounded TCP-connect observations</p></article>
         <article class="card metric" style="--metric-color:var(--low)"><span class="metric-label">Module health</span><div class="metric-value">{modules_total - errors_total}/{modules_total}</div><p class="metric-note">{errors_total} module error(s) recorded</p></article>
       </div>
+    </section>
+
+    <section class="section" id="inventory" aria-labelledby="inventory-heading">
+      <div class="section-heading"><div><h2 id="inventory-heading">Discovery inventory</h2><p>All module results combined into one view: assets, endpoints, services, and platform observations collected during this assessment.</p></div></div>
+      <div class="grid module-grid">{inventory}</div>
     </section>
 
     <section class="section" id="risk" aria-labelledby="risk-heading">
@@ -631,6 +637,205 @@ class ReportWriter:
             )
         return "".join(cards) or '<p class="empty">No valid research priorities were generated.</p>'
 
+    def _inventory_section(self, report: ScanReport) -> str:
+        """Combine every module result into a single presentable discovery inventory."""
+        data = {module.module: module.data for module in report.modules}
+
+        subdomains = self._merge_strings(
+            data.get("recon", {}).get("passive_subdomains"),
+            data.get("subfinder", {}).get("subdomains"),
+            data.get("amass", {}).get("subdomains"),
+        )
+        endpoints = self._merge_strings(
+            data.get("api_discovery", {}).get("public_endpoint_candidates"),
+            data.get("javascript", {}).get("endpoint_candidates"),
+            data.get("surface", {}).get("graphql_candidates"),
+            data.get("surface", {}).get("websocket_candidates"),
+        )
+        urls = self._merge_strings(
+            data.get("sitemap", {}).get("urls"),
+            data.get("robots", {}).get("sitemaps"),
+        )
+        crawled_pages = data.get("crawler", {}).get("pages", [])
+        if isinstance(crawled_pages, list):
+            urls = self._merge_strings(
+                urls,
+                [page.get("url") for page in crawled_pages if isinstance(page, dict)],
+            )
+        for module_name in ("ffuf", "content_discovery"):
+            discovered = data.get(module_name, {}).get("discovered_paths", [])
+            if isinstance(discovered, list):
+                urls = self._merge_strings(
+                    urls, [item.get("url") for item in discovered if isinstance(item, dict)]
+                )
+
+        technologies = self._merge_strings(data.get("technology", {}).get("technologies"))
+        hints = data.get("technology", {}).get("technology_hints", {})
+        if isinstance(hints, dict):
+            for values in hints.values():
+                technologies = self._merge_strings(technologies, values)
+        technologies = self._merge_strings(
+            technologies,
+            data.get("recon", {}).get("cdn"),
+            data.get("recon", {}).get("waf"),
+            data.get("recon", {}).get("hosting_hints"),
+        )
+
+        port_rows = self._port_inventory(data)
+        email_card = self._email_inventory_card(data.get("email_security", {}))
+        takeover_card = self._takeover_inventory_card(data.get("takeover", {}))
+        artifacts_card = self._artifacts_inventory_card(data.get("public_artifacts", {}))
+
+        cards = [
+            self._inventory_card("Subdomains", len(subdomains), self._chips(subdomains)),
+            self._inventory_card(
+                "Endpoints & API candidates", len(endpoints), self._chips(endpoints)
+            ),
+            self._inventory_card("Published & discovered URLs", len(urls), self._chips(urls)),
+            self._inventory_card(
+                "Open ports & services",
+                len(port_rows),
+                self._table(["Port", "Service", "Detail"], port_rows),
+            ),
+            self._inventory_card(
+                "Technologies & platforms", len(technologies), self._chips(technologies)
+            ),
+            email_card,
+            takeover_card,
+            artifacts_card,
+        ]
+        return "".join(cards)
+
+    @staticmethod
+    def _merge_strings(*values: object) -> list[str]:
+        """Deduplicate string collections while preserving first-seen order."""
+        merged: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            if not isinstance(value, list):
+                continue
+            for item in value:
+                text = str(item).strip()
+                if text and text not in seen:
+                    seen.add(text)
+                    merged.append(text)
+        return merged
+
+    @staticmethod
+    def _port_inventory(data: dict[str, Any]) -> list[list[str]]:
+        """Combine built-in and nmap open-port observations into table rows."""
+        rows: list[list[str]] = []
+        open_ports = data.get("ports", {}).get("open_ports", [])
+        if isinstance(open_ports, list):
+            for item in open_ports:
+                if isinstance(item, dict):
+                    rows.append(
+                        [
+                            str(item.get("port", "")),
+                            str(item.get("service", "unknown")),
+                            str(item.get("banner", "")),
+                        ]
+                    )
+        nmap_open = data.get("nmap", {}).get("open_ports", [])
+        if isinstance(nmap_open, list):
+            for item in nmap_open:
+                if isinstance(item, dict):
+                    rows.append(
+                        [
+                            str(item.get("port", "")),
+                            "nmap",
+                            str(item.get("host", "")),
+                        ]
+                    )
+        return rows
+
+    def _email_inventory_card(self, email: dict[str, Any]) -> str:
+        if not email.get("enabled"):
+            return self._inventory_card(
+                "Email security", "—", '<p class="muted">Email-policy checks were disabled.</p>'
+            )
+        spf = email.get("spf_records") or ["None"]
+        dmarc = str(email.get("dmarc_record") or "None")
+        policy = str(email.get("dmarc_policy") or "—")
+        rows = [
+            ["SPF records", "; ".join(str(item) for item in spf)],
+            ["DMARC record", dmarc],
+            ["DMARC policy", policy],
+        ]
+        return self._inventory_card(
+            "Email security (SPF/DMARC)", policy, self._table(["Field", "Value"], rows)
+        )
+
+    def _takeover_inventory_card(self, takeover: dict[str, Any]) -> str:
+        candidates = takeover.get("candidates", [])
+        if not isinstance(candidates, list) or not candidates:
+            return self._inventory_card(
+                "Takeover candidates", "0", '<p class="muted">No takeover candidates observed.</p>'
+            )
+        rows = [
+            [
+                str(candidate.get("subdomain", "")),
+                str(candidate.get("kind", "")),
+                str(candidate.get("cname", "")),
+                str(candidate.get("reason", "")),
+            ]
+            for candidate in candidates
+            if isinstance(candidate, dict)
+        ]
+        return self._inventory_card(
+            "Takeover candidates",
+            len(rows),
+            self._table(["Subdomain", "Kind", "CNAME", "Reason"], rows),
+        )
+
+    def _artifacts_inventory_card(self, artifacts: dict[str, Any]) -> str:
+        records = artifacts.get("public_artifacts", {})
+        if not isinstance(records, dict) or not records:
+            return self._inventory_card(
+                "Public artifacts", "0", '<p class="muted">Public artifact checks were not run.</p>'
+            )
+        rows = []
+        for name, entry in records.items():
+            if not isinstance(entry, dict):
+                continue
+            rows.append(
+                [
+                    str(name),
+                    str(entry.get("status_code", "")),
+                    str(entry.get("sha256", "")),
+                    str(entry.get("url", "")),
+                ]
+            )
+        return self._inventory_card(
+            "Public artifacts",
+            len(rows),
+            self._table(["Artifact", "Status", "SHA-256", "URL"], rows),
+        )
+
+    def _inventory_card(self, title: str, count: object, body: str) -> str:
+        """Render one aggregated inventory card."""
+        return (
+            f'<article class="card module"><div class="module-head"><span class="module-icon" '
+            f'aria-hidden="true">▣</span><h3 class="module-name">{self._escape(title)}</h3>'
+            f'<span class="module-state">{self._escape(count)}</span></div>{body}</article>'
+        )
+
+    @staticmethod
+    def _table(headers: list[str], rows: list[list[str]]) -> str:
+        """Render a compact escaped table with an empty-state fallback."""
+        head = "".join(f"<th>{html.escape(header)}</th>" for header in headers)
+        if not rows:
+            body = f'<tr><td colspan="{len(headers)}" class="empty">None observed</td></tr>'
+        else:
+            body = "".join(
+                "<tr>" + "".join(f"<td>{html.escape(cell)}</td>" for cell in row) + "</tr>"
+                for row in rows
+            )
+        return (
+            f'<div class="table-scroll"><table><thead><tr>{head}</tr></thead>'
+            f"<tbody>{body}</tbody></table></div>"
+        )
+
     @staticmethod
     def _scan_metrics(report: ScanReport) -> dict[str, int]:
         """Summarize existing module data without changing it or making new requests."""
@@ -715,6 +920,7 @@ class ReportWriter:
         errors_count = len(module.errors)
         state = "Completed" if not errors_count else f"{errors_count} issue(s)"
         facts = self._data_facts(module.data)
+        full_data = self._module_full_data(module.data)
         error_markup = (
             f'<details><summary>Module errors ({errors_count})</summary><pre class="evidence">'
             f"{self._escape(chr(10).join(module.errors))}</pre></details>"
@@ -724,8 +930,87 @@ class ReportWriter:
         return f"""<article class="card module">
   <div class="module-head"><span class="module-icon" aria-hidden="true">{self._escape(icon)}</span><h3 class="module-name">{self._escape(module.module)}</h3><span class="module-state">{self._escape(state)}</span></div>
   <p class="muted">{findings_count} finding(s) · {module.duration_ms} ms</p>
-  <div class="facts">{facts}</div>{error_markup}
+  <div class="facts">{facts}</div>{full_data}{error_markup}
 </article>"""
+
+    def _module_full_data(self, data: dict[str, Any]) -> str:
+        """Render every field of a module result, including long lists and tables."""
+        if not data:
+            return ""
+        rows = []
+        for key, value in data.items():
+            rows.append(
+                f'<div class="fact"><span class="fact-key">{self._escape(self._humanize(key))}</span>'
+                f"<span>{self._full_value(value)}</span></div>"
+            )
+        return (
+            f"<details><summary>Full module data ({len(data)} fields)</summary>"
+            f'<div class="facts">{"".join(rows)}</div></details>'
+        )
+
+    def _full_value(self, value: Any) -> str:
+        """Render a complete value: tables for record lists, chips for string lists."""
+        if isinstance(value, list):
+            if not value:
+                return '<span class="muted">None</span>'
+            if all(isinstance(item, dict) for item in value):
+                return self._records_table(value)
+            return self._chips([str(item) for item in value])
+        if isinstance(value, dict):
+            flattened = [
+                f'<div class="fact"><span class="fact-key">{self._escape(self._humanize(key))}</span>'
+                f"<span>{self._full_value(inner)}</span></div>"
+                for key, inner in value.items()
+            ]
+            return f'<div class="facts">{"".join(flattened)}</div>'
+        if value in (None, ""):
+            return '<span class="muted">Not observed</span>'
+        return self._escape(value)
+
+    def _records_table(self, records: list[dict[str, Any]]) -> str:
+        """Render a list of dicts as a compact, scrollable table."""
+        columns: list[str] = []
+        for record in records[:200]:
+            for key in record:
+                if key not in columns:
+                    columns.append(key)
+        if not columns:
+            return '<span class="muted">No fields</span>'
+        head = "".join(f"<th>{self._escape(self._humanize(col))}</th>" for col in columns)
+        body = "".join(
+            "<tr>"
+            + "".join(f"<td>{self._full_value(record.get(col, ''))}</td>" for col in columns)
+            + "</tr>"
+            for record in records[:200]
+        )
+        extra = (
+            f'<tr><td colspan="{len(columns)}" class="empty">+{len(records) - 200} more rows '
+            "retained in the raw-data appendix.</td></tr>"
+            if len(records) > 200
+            else ""
+        )
+        return (
+            f'<div class="table-scroll"><table><thead><tr>{head}</tr></thead>'
+            f"<tbody>{body}{extra}</tbody></table></div>"
+        )
+
+    def _chips(self, items: list[str], limit: int = 300) -> str:
+        """Render a deduplicated list of values as wrapping chips."""
+        if not items:
+            return '<span class="muted">None</span>'
+        unique: list[str] = []
+        seen: set[str] = set()
+        for item in items:
+            if item not in seen:
+                seen.add(item)
+                unique.append(item)
+        chips = "".join(
+            f'<span class="chip">{self._escape(item)}</span>' for item in unique[:limit]
+        )
+        extra = (
+            f'<span class="chip">+{len(unique) - limit} more</span>' if len(unique) > limit else ""
+        )
+        return f'<span class="value-list">{chips}{extra}</span>'
 
     def _data_facts(self, data: dict[str, Any]) -> str:
         if not data:

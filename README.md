@@ -31,7 +31,8 @@ It is not an exploitation framework. Sentinel does not authenticate, bypass acce
   sequential batch scans of explicit targets
 - Async, header-only asset monitoring with local SQLite baselines and Markdown delta summaries
 - Enterprise HTML reporting with risk overview, charts, searchable findings, investigation guidance,
-  dark/light themes, print styling, evidence-copy controls, and branding options
+  dark/light themes, print styling, evidence-copy controls, branding options, and a combined
+  Discovery Inventory that aggregates every module result
 - Optional local SQLite research workspaces with scan history, note search, scan comparison, and
   knowledge-graph JSON export; these features never send stored data elsewhere
 - JSON, Markdown, HTML, CSV, and PDF reporting; YAML profiles; trusted local plugins

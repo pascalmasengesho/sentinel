@@ -17,6 +17,9 @@
 - Expanded technology fingerprints for CMS, frameworks, analytics, CDN/WAF, and hosting hints.
 - Added opt-in adapters for locally installed external tools: subfinder, amass, nmap, nuclei,
   and ffuf, with bounded timeouts, scope/rate pass-through, and parsed report output.
+- Added a combined Discovery Inventory section to HTML reports that aggregates subdomains,
+  endpoints, URLs, open ports, technologies, email policy, takeover candidates, and artifacts,
+  plus full per-module data tables.
 
 ## 0.2.0 - 2026-08-11
 
