@@ -30,6 +30,8 @@ parts:
   sentinel:
     plugin: python
     source: ..
+    python-packages:
+      - .
     build-packages:
       - python3-dev
 
