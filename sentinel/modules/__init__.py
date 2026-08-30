@@ -5,6 +5,13 @@ from sentinel.modules.artifacts import PublicArtifactModule
 from sentinel.modules.crawler import CrawlerModule
 from sentinel.modules.dns import DnsModule
 from sentinel.modules.email import EmailSecurityModule
+from sentinel.modules.external_tools import (
+    AmassModule,
+    FfufModule,
+    NmapModule,
+    NucleiModule,
+    SubfinderModule,
+)
 from sentinel.modules.headers import HeaderModule
 from sentinel.modules.http import HttpModule
 from sentinel.modules.javascript import JavaScriptModule
@@ -36,4 +43,9 @@ __all__ = [
     "TechnologyModule",
     "TlsModule",
     "WordlistModule",
+    "AmassModule",
+    "FfufModule",
+    "NmapModule",
+    "NucleiModule",
+    "SubfinderModule",
 ]

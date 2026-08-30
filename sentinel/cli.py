@@ -128,6 +128,28 @@ def scan(
             help="Triage CT-discovered subdomains for takeover candidates (passive DNS only).",
         ),
     ] = False,
+    subfinder: Annotated[
+        bool,
+        typer.Option(
+            "--subfinder", help="Run the local subfinder binary for passive subdomain discovery."
+        ),
+    ] = False,
+    amass: Annotated[
+        bool,
+        typer.Option("--amass", help="Run the local amass binary for passive subdomain discovery."),
+    ] = False,
+    nmap: Annotated[
+        bool,
+        typer.Option("--nmap", help="Run the local nmap binary for service/version discovery."),
+    ] = False,
+    nuclei: Annotated[
+        bool,
+        typer.Option("--nuclei", help="Run the local nuclei binary with the configured templates."),
+    ] = False,
+    ffuf: Annotated[
+        bool,
+        typer.Option("--ffuf", help="Run the local ffuf binary for content discovery."),
+    ] = False,
     api_probe: Annotated[
         bool, typer.Option("--api-probe", help="Check four conventional public API-doc paths.")
     ] = False,
@@ -202,6 +224,11 @@ def scan(
                 "enable_whois": True if whois else None,
                 "enable_email_security": email_security,
                 "enable_takeover_check": True if takeover_check else None,
+                "enable_subfinder": True if subfinder else None,
+                "enable_amass": True if amass else None,
+                "enable_nmap": True if nmap else None,
+                "enable_nuclei": True if nuclei else None,
+                "enable_ffuf": True if ffuf else None,
                 "enable_public_api_probe": True if api_probe else None,
                 "enable_public_artifact_checks": True if public_artifacts else None,
                 "enable_safe_crawl": True if crawl else None,
@@ -219,6 +246,8 @@ def scan(
             raise ValueError("--crawl-pages and --crawl-depth require --crawl.")
         if takeover_check and not passive_subdomains:
             raise ValueError("--takeover-check requires --passive-subdomains.")
+        if ffuf and not wordlist and not config.ffuf_wordlist_path:
+            raise ValueError("--ffuf requires --wordlist or a configured ffuf_wordlist_path.")
         if scope:
             config = scope.constrained_config(config)
         scanner = Scanner(target, config, authorized=True, scope=scope)

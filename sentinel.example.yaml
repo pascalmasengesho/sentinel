@@ -22,6 +22,25 @@ max_crawl_pages: 20
 max_crawl_depth: 2
 allow_private: false
 
+# External tools are trusted local binaries invoked only when enabled.
+# Install them on PATH and review their flags before turning these on.
+enable_subfinder: false
+enable_amass: false
+enable_nmap: false
+enable_nuclei: false
+enable_ffuf: false
+external_timeout_seconds: 300
+subfinder_args: "-silent"
+amass_args: "-passive"
+nmap_args: "-sV -Pn -T3"
+nuclei_args: "-silent"
+nuclei_severity: "low,medium,high,critical"
+nuclei_tags: "exposure,misconfig"
+# nuclei_templates: "/path/to/your/templates"
+ffuf_args: "-noninteractive"
+# ffuf_wordlist_path: "/path/to/your/wordlist.txt"
+ffuf_match_codes: "200,204,301,302,307,308,401,403"
+
 profiles:
   passive:
     enable_port_scan: false

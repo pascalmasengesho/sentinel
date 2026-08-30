@@ -15,6 +15,8 @@
   the private-address guard to reject mixed public/private DNS answers, and fixed robots.txt
   Disallow prefix matching to follow the standard.
 - Expanded technology fingerprints for CMS, frameworks, analytics, CDN/WAF, and hosting hints.
+- Added opt-in adapters for locally installed external tools: subfinder, amass, nmap, nuclei,
+  and ffuf, with bounded timeouts, scope/rate pass-through, and parsed report output.
 
 ## 0.2.0 - 2026-08-11
 

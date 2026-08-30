@@ -83,6 +83,17 @@ images and stylesheets.
 
 `--banners` reads up to 256 bytes after an open TCP connection only when a service sends a banner first. It never sends an application payload.
 
+## External tool adapters
+
+Sentinel can delegate to locally installed security tools. Every adapter is disabled by default, runs with a bounded timeout, and is parsed back into the normal report model. The tools are invoked only against the exact authorized target, and Sentinel's scope and rate settings are passed through where the tool supports them.
+
+- `--subfinder` and `--amass` perform passive subdomain discovery.
+- `--nmap` runs service/version discovery over the configured port list.
+- `--nuclei` runs the configured severity/tag set (`nuclei_severity`, `nuclei_tags`, optional `nuclei_templates` in the YAML config). The default tags are `exposure,misconfig`; broaden them deliberately.
+- `--ffuf` runs content discovery against `<origin>/FUZZ` and requires `--wordlist` (or `ffuf_wordlist_path`). Match codes, concurrency, and rate are taken from the configuration.
+
+These binaries are trusted local code. Install only tools you trust, review their flags in `sentinel.example.yaml`, and remember that their results are observations that still need manual, in-scope verification.
+
 ## Configuration
 
 Copy `sentinel.example.yaml`, edit it, and select a profile:

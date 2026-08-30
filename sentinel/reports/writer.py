@@ -19,14 +19,18 @@ from sentinel.models import Finding, ScanReport
 _SEVERITY_ORDER = ("high", "medium", "low", "info")
 _SEVERITY_WEIGHTS = {"high": 25, "medium": 12, "low": 4, "info": 1}
 _MODULE_ICONS = {
+    "amass": "⛏",
     "api_discovery": "⌘",
     "content_discovery": "≡",
     "crawler": "↳",
     "dns": "◎",
     "email_security": "✉",
+    "ffuf": "ƒ",
     "headers": "▤",
     "http": "↗",
     "javascript": "{ }",
+    "nmap": "⌗",
+    "nuclei": "☢",
     "plugins": "✦",
     "ports": "◌",
     "research_priorities": "◆",
@@ -34,6 +38,7 @@ _MODULE_ICONS = {
     "robots": "⌂",
     "sitemap": "≋",
     "scope": "⌖",
+    "subfinder": "⌕",
     "surface": "◫",
     "takeover": "⌖",
     "technology": "◈",

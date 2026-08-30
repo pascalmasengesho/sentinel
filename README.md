@@ -35,6 +35,8 @@ It is not an exploitation framework. Sentinel does not authenticate, bypass acce
 - Optional local SQLite research workspaces with scan history, note search, scan comparison, and
   knowledge-graph JSON export; these features never send stored data elsewhere
 - JSON, Markdown, HTML, CSV, and PDF reporting; YAML profiles; trusted local plugins
+- Opt-in adapters for locally installed external tools — subfinder, amass, nmap,
+  nuclei, and ffuf — invoked with bounded timeouts and parsed into normal reports
 
 ## Installation
 
@@ -92,6 +94,14 @@ WHOIS is opt-in; SPF/DMARC DNS checks are enabled by default and can be disabled
 ```bash
 sentinel scan example.com --authorized --whois
 sentinel scan example.com --authorized --no-email-security
+```
+
+Optionally delegate to locally installed reconnaissance tools. Each adapter is opt-in,
+invoked with a bounded timeout, and respects the selected scope and rate settings:
+
+```bash
+sentinel scan example.com --authorized --subfinder --amass --nmap
+sentinel scan example.com --authorized --nuclei --ffuf --wordlist ./wordlists/safe.txt
 ```
 
 Public artifact checks are opt-in. They request only `/favicon.ico`,

@@ -41,6 +41,22 @@ class ScanConfig:
     max_crawl_depth: int = 2
     allow_private: bool = False
     plugin_directory: str | None = None
+    enable_subfinder: bool = False
+    enable_amass: bool = False
+    enable_nmap: bool = False
+    enable_nuclei: bool = False
+    enable_ffuf: bool = False
+    external_timeout_seconds: float = 300.0
+    subfinder_args: str = "-silent"
+    amass_args: str = "-passive"
+    nmap_args: str = "-sV -Pn -T3"
+    nuclei_args: str = "-silent"
+    nuclei_severity: str = "low,medium,high,critical"
+    nuclei_tags: str = "exposure,misconfig"
+    nuclei_templates: str | None = None
+    ffuf_args: str = "-noninteractive"
+    ffuf_wordlist_path: str | None = None
+    ffuf_match_codes: str = "200,204,301,302,307,308,401,403"
 
     def validate(self) -> None:
         """Validate configuration types and bounds before any requests are made."""
@@ -73,10 +89,16 @@ class ScanConfig:
         self._require_integer("max_js_files", self.max_js_files, minimum=1, maximum=100)
         self._require_integer("max_crawl_pages", self.max_crawl_pages, minimum=1, maximum=100)
         self._require_integer("max_crawl_depth", self.max_crawl_depth, minimum=1, maximum=4)
+        self._require_number(
+            "external_timeout_seconds", self.external_timeout_seconds, minimum=1.0, maximum=3600.0
+        )
         if self.wordlist_path is not None and not isinstance(self.wordlist_path, str):
             raise ValueError("wordlist_path must be a string or null")
         if self.plugin_directory is not None and not isinstance(self.plugin_directory, str):
             raise ValueError("plugin_directory must be a string or null")
+        for string_name, string_value in self._string_fields().items():
+            if not isinstance(string_value, str):
+                raise ValueError(f"{string_name} must be a string")
 
     def _boolean_fields(self) -> dict[str, bool]:
         """Return boolean configuration fields for strict type validation."""
@@ -93,6 +115,24 @@ class ScanConfig:
             "enable_content_discovery": self.enable_content_discovery,
             "enable_safe_crawl": self.enable_safe_crawl,
             "allow_private": self.allow_private,
+            "enable_subfinder": self.enable_subfinder,
+            "enable_amass": self.enable_amass,
+            "enable_nmap": self.enable_nmap,
+            "enable_nuclei": self.enable_nuclei,
+            "enable_ffuf": self.enable_ffuf,
+        }
+
+    def _string_fields(self) -> dict[str, str]:
+        """Return string configuration fields for strict type validation."""
+        return {
+            "subfinder_args": self.subfinder_args,
+            "amass_args": self.amass_args,
+            "nmap_args": self.nmap_args,
+            "nuclei_args": self.nuclei_args,
+            "nuclei_severity": self.nuclei_severity,
+            "nuclei_tags": self.nuclei_tags,
+            "ffuf_args": self.ffuf_args,
+            "ffuf_match_codes": self.ffuf_match_codes,
         }
 
     @staticmethod

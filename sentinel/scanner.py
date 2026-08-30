@@ -10,18 +10,23 @@ from sentinel.config import ScanConfig
 from sentinel.http_client import SafeHttpClient
 from sentinel.models import ModuleResult, ScanReport
 from sentinel.modules import (
+    AmassModule,
     ApiDiscoveryModule,
     CrawlerModule,
     DnsModule,
     EmailSecurityModule,
+    FfufModule,
     HeaderModule,
     HttpModule,
     JavaScriptModule,
+    NmapModule,
+    NucleiModule,
     PortModule,
     PublicArtifactModule,
     ReconModule,
     RobotsModule,
     SitemapModule,
+    SubfinderModule,
     SurfaceModule,
     TakeoverModule,
     TechnologyModule,
@@ -98,6 +103,20 @@ class Scanner:
             if self.config.enable_public_artifact_checks:
                 final_stage.append(PublicArtifactModule())
             report.modules.extend(await self._run_stage(final_stage, context))
+
+            external_stage: list[ScanModule] = []
+            if self.config.enable_subfinder:
+                external_stage.append(SubfinderModule())
+            if self.config.enable_amass:
+                external_stage.append(AmassModule())
+            if self.config.enable_nmap:
+                external_stage.append(NmapModule())
+            if self.config.enable_nuclei:
+                external_stage.append(NucleiModule())
+            if self.config.enable_ffuf:
+                external_stage.append(FfufModule())
+            if external_stage:
+                report.modules.extend(await self._run_stage(external_stage, context))
 
             plugins, plugin_errors = load_plugins(self.config.plugin_directory)
             if plugin_errors:
