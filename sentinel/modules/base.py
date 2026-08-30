@@ -10,6 +10,7 @@ from typing import Any
 from sentinel.config import ScanConfig
 from sentinel.http_client import HttpResponse, SafeHttpClient
 from sentinel.models import ModuleResult
+from sentinel.scope import ScopeManifest
 from sentinel.target import Target
 
 
@@ -22,8 +23,10 @@ class ScanContext:
     http: SafeHttpClient
     http_response: HttpResponse | None = None
     robots_text: str = ""
+    robots_disallowed: list[str] = field(default_factory=list)
     robots_sitemaps: list[str] = field(default_factory=list)
     sitemap_urls: list[str] = field(default_factory=list)
+    scope: ScopeManifest | None = None
     data: dict[str, Any] = field(default_factory=dict)
 
 

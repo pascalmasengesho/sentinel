@@ -5,13 +5,16 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urljoin, urlsplit
 
 import httpx
 
 from sentinel.config import ScanConfig
 from sentinel.target import Target, is_safe_public_host, same_host
+
+if TYPE_CHECKING:
+    from sentinel.scope import ScopeManifest
 
 
 class RequestBlockedError(ValueError):
@@ -53,9 +56,12 @@ class RateLimiter:
 class SafeHttpClient:
     """HTTP client that permits only same-host, public HTTP(S) requests by default."""
 
-    def __init__(self, target: Target, config: ScanConfig) -> None:
+    def __init__(
+        self, target: Target, config: ScanConfig, scope: ScopeManifest | None = None
+    ) -> None:
         self.target = target
         self.config = config
+        self.scope = scope
         self._limiter = RateLimiter(config.rate_limit_per_second)
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(config.timeout_seconds),
@@ -136,5 +142,7 @@ class SafeHttpClient:
             raise RequestBlockedError(f"Blocked non-HTTP(S) URL: {url}")
         if not same_host(url, self.target):
             raise RequestBlockedError(f"Blocked out-of-scope host: {parsed.hostname}")
+        if self.scope and not self.scope.allows_url(url):
+            raise RequestBlockedError(f"Blocked by selected scope manifest: {url}")
         if not is_safe_public_host(parsed.hostname, self.config.allow_private):
             raise RequestBlockedError(f"Blocked private or reserved address: {parsed.hostname}")

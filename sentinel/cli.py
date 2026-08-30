@@ -14,10 +14,14 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
+from sentinel.asset_probe import AssetProbeEngine
+from sentinel.asset_state import AssetDelta, AssetStateStore
+from sentinel.batch import BatchScanner
 from sentinel.config import ScanConfig, apply_overrides, load_config
 from sentinel.models import ScanReport
 from sentinel.reports import ReportFormat, ReportWriter
 from sentinel.scanner import Scanner
+from sentinel.scope import ScopeValidationError, load_scope_manifest
 from sentinel.workspace import WorkspaceStore
 
 app = typer.Typer(
@@ -75,6 +79,10 @@ def scan(
     config_path: Annotated[
         Path | None, typer.Option("--config", help="YAML configuration file.")
     ] = None,
+    scope_file: Annotated[
+        Path | None,
+        typer.Option("--scope", help="Optional YAML scope manifest that Sentinel enforces."),
+    ] = None,
     profile: Annotated[
         str | None, typer.Option("--profile", help="Named profile in the YAML configuration.")
     ] = None,
@@ -100,6 +108,26 @@ def scan(
         bool,
         typer.Option("--passive-subdomains", help="Query crt.sh, a third-party public CT index."),
     ] = False,
+    whois: Annotated[
+        bool,
+        typer.Option(
+            "--whois", help="Query public WHOIS servers for the target's registration metadata."
+        ),
+    ] = False,
+    email_security: Annotated[
+        bool,
+        typer.Option(
+            "--email-security/--no-email-security",
+            help="Check published SPF/DMARC policies through passive DNS (enabled by default).",
+        ),
+    ] = True,
+    takeover_check: Annotated[
+        bool,
+        typer.Option(
+            "--takeover-check",
+            help="Triage CT-discovered subdomains for takeover candidates (passive DNS only).",
+        ),
+    ] = False,
     api_probe: Annotated[
         bool, typer.Option("--api-probe", help="Check four conventional public API-doc paths.")
     ] = False,
@@ -110,6 +138,16 @@ def scan(
             help="Read public favicon and security.txt files at the configured rate.",
         ),
     ] = False,
+    crawl: Annotated[
+        bool,
+        typer.Option("--crawl", help="Enable bounded same-origin GET crawling."),
+    ] = False,
+    crawl_pages: Annotated[
+        int | None, typer.Option("--crawl-pages", min=1, max=100, help="Maximum pages to crawl.")
+    ] = None,
+    crawl_depth: Annotated[
+        int | None, typer.Option("--crawl-depth", min=1, max=4, help="Maximum crawl link depth.")
+    ] = None,
     content_discovery: Annotated[
         bool,
         typer.Option("--content-discovery", help="Enable wordlist paths at the configured rate."),
@@ -148,6 +186,7 @@ def scan(
     if not authorized:
         raise typer.BadParameter("--authorized is required before Sentinel makes network requests.")
     try:
+        scope = load_scope_manifest(scope_file) if scope_file else None
         config = load_config(config_path, profile)
         parsed_ports = [int(item.strip()) for item in ports.split(",")] if ports else None
         config = apply_overrides(
@@ -160,8 +199,14 @@ def scan(
                 "enable_port_scan": False if no_port_scan else None,
                 "enable_banner_grab": True if banners else None,
                 "enable_passive_subdomains": True if passive_subdomains else None,
+                "enable_whois": True if whois else None,
+                "enable_email_security": email_security,
+                "enable_takeover_check": True if takeover_check else None,
                 "enable_public_api_probe": True if api_probe else None,
                 "enable_public_artifact_checks": True if public_artifacts else None,
+                "enable_safe_crawl": True if crawl else None,
+                "max_crawl_pages": crawl_pages,
+                "max_crawl_depth": crawl_depth,
                 "enable_content_discovery": True if content_discovery else None,
                 "wordlist_path": str(wordlist) if wordlist else None,
                 "allow_private": True if allow_private else None,
@@ -170,8 +215,14 @@ def scan(
         )
         if content_discovery and not wordlist:
             raise ValueError("--content-discovery requires --wordlist.")
-        scanner = Scanner(target, config, authorized=True)
-    except (ValueError, OSError, PermissionError) as exc:
+        if (crawl_pages is not None or crawl_depth is not None) and not crawl:
+            raise ValueError("--crawl-pages and --crawl-depth require --crawl.")
+        if takeover_check and not passive_subdomains:
+            raise ValueError("--takeover-check requires --passive-subdomains.")
+        if scope:
+            config = scope.constrained_config(config)
+        scanner = Scanner(target, config, authorized=True, scope=scope)
+    except (ScopeValidationError, TypeError, ValueError, OSError, PermissionError) as exc:
         console.print(f"[bold red]Configuration error:[/] {exc}")
         raise typer.Exit(code=2) from exc
 
@@ -198,6 +249,134 @@ def scan(
             )
         else:
             console.print(f"[dim]Stored scan {scan_id} in local workspace {workspace}.[/]")
+
+
+@app.command("batch")
+def batch_scan(
+    scope_file: Annotated[
+        Path, typer.Argument(help="YAML scope manifest containing explicit targets.")
+    ],
+    authorized: Annotated[
+        bool,
+        typer.Option("--authorized", help="Required acknowledgement for every manifest target."),
+    ] = False,
+    output_dir: Annotated[
+        Path, typer.Option("--output-dir", "-o", help="Directory for one report per target.")
+    ] = Path("reports/batch"),
+    report_format: Annotated[
+        ReportFormat, typer.Option("--format", "-f", case_sensitive=False)
+    ] = ReportFormat.JSON,
+    config_path: Annotated[
+        Path | None, typer.Option("--config", help="YAML scanner configuration file.")
+    ] = None,
+    profile: Annotated[
+        str | None, typer.Option("--profile", help="Named profile in the YAML configuration.")
+    ] = None,
+    crawl: Annotated[
+        bool, typer.Option("--crawl", help="Enable bounded same-origin GET crawling per target.")
+    ] = False,
+    workspace: Annotated[
+        Path | None,
+        typer.Option("--workspace", help="Optional SQLite workspace for completed scans."),
+    ] = None,
+    brand_name: Annotated[
+        str, typer.Option("--brand-name", help="Brand name shown in HTML reports.")
+    ] = "Sentinel",
+    logo_url: Annotated[
+        str, typer.Option("--logo-url", help="Optional HTTP(S) logo URL for HTML reports.")
+    ] = "",
+) -> None:
+    """Scan explicit manifest targets sequentially under its rate limit."""
+    if not authorized:
+        raise typer.BadParameter("--authorized is required before Sentinel makes network requests.")
+    try:
+        scope = load_scope_manifest(scope_file)
+        config = load_config(config_path, profile)
+        config = apply_overrides(config, {"enable_safe_crawl": True if crawl else None})
+        results = asyncio.run(BatchScanner(scope, config, authorized=True).scan())
+    except (ScopeValidationError, TypeError, ValueError, OSError, PermissionError) as exc:
+        console.print(f"[bold red]Batch configuration error:[/] {exc}")
+        raise typer.Exit(code=2) from exc
+
+    writer = ReportWriter(
+        brand_name=brand_name,
+        logo_url=logo_url,
+        config_snapshot=asdict(scope.constrained_config(config)),
+    )
+    store = WorkspaceStore(workspace) if workspace else None
+    for index, result in enumerate(results, start=1):
+        path = writer.write(
+            result.report,
+            output_dir / _batch_report_stem(index, result.target.host),
+            report_format,
+        )
+        _print_summary(result.report.statistics, path)
+        if store:
+            try:
+                scan_id = store.save_scan(result.report, asdict(scope.constrained_config(config)))
+            except (OSError, ValueError, sqlite3.Error) as exc:
+                console.print(
+                    f"[yellow]Workspace warning for {result.target.host}:[/] report was written, "
+                    f"but not stored: {exc}"
+                )
+            else:
+                console.print(f"[dim]Stored scan {scan_id} in local workspace {workspace}.[/]")
+
+
+@app.command("monitor")
+def monitor_assets(
+    scope_file: Annotated[
+        Path, typer.Argument(help="YAML scope manifest containing explicit targets.")
+    ],
+    authorized: Annotated[
+        bool,
+        typer.Option("--authorized", help="Required acknowledgement for every manifest target."),
+    ] = False,
+    state_path: Annotated[
+        Path,
+        typer.Option("--state", help="Local SQLite baseline database for asset observations."),
+    ] = Path(".sentinel/assets.db"),
+    config_path: Annotated[
+        Path | None, typer.Option("--config", help="YAML scanner configuration file.")
+    ] = None,
+    profile: Annotated[
+        str | None, typer.Option("--profile", help="Named profile in the YAML configuration.")
+    ] = None,
+    concurrency: Annotated[
+        int | None, typer.Option("--concurrency", min=1, max=20, help="Concurrent probes.")
+    ] = None,
+    rate: Annotated[
+        float | None,
+        typer.Option("--rate", min=0.1, max=10.0, help="Shared maximum request starts per second."),
+    ] = None,
+) -> None:
+    """Report only new/status/size changes for explicit authorized assets."""
+    if not authorized:
+        raise typer.BadParameter("--authorized is required before Sentinel makes network requests.")
+    try:
+        scope = load_scope_manifest(scope_file)
+        config = apply_overrides(
+            load_config(config_path, profile),
+            {"concurrency": concurrency, "rate_limit_per_second": rate},
+        )
+        observations, failures = asyncio.run(AssetProbeEngine(scope, config).probe())
+        deltas = AssetStateStore(state_path).record(scope.name, observations)
+    except (
+        ScopeValidationError,
+        TypeError,
+        ValueError,
+        OSError,
+        PermissionError,
+        sqlite3.Error,
+    ) as exc:
+        console.print(f"[bold red]Monitor configuration error:[/] {exc}")
+        raise typer.Exit(code=2) from exc
+
+    console.print(_asset_delta_markdown(deltas))
+    if failures:
+        console.print(f"[yellow]Probe failures ({len(failures)}):[/]")
+        for failure in failures:
+            console.print(f"- {failure.target}: {failure.error}")
 
 
 @app.command("config")
@@ -396,6 +575,41 @@ def _print_summary(statistics: dict[str, int], path: Path) -> None:
         str(path),
     )
     console.print(table)
+
+
+def _batch_report_stem(index: int, host: str) -> str:
+    """Create a portable deterministic report name without trusting host punctuation."""
+    safe_host = "".join(
+        character if character.isalnum() or character in {"-", "."} else "-" for character in host
+    )
+    return f"{index:03d}-{safe_host}-sentinel-report"
+
+
+def _asset_delta_markdown(deltas: list[AssetDelta]) -> str:
+    """Render the monitor result as an intentionally compact Markdown delta table."""
+    if not deltas:
+        return "No new or changed endpoints were observed against the local baseline."
+    lines = [
+        "| Endpoint | Change | Status | Content length | Header-derived stack |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for delta in deltas:
+        status = f"{_display(delta.previous_status_code)} → {delta.status_code}"
+        length = f"{_display(delta.previous_content_length)} → {_display(delta.content_length)}"
+        lines.append(
+            "| "
+            f"{_markdown_cell(delta.target)} | {_markdown_cell(', '.join(delta.changes))} | "
+            f"{status} | {length} | {_markdown_cell(', '.join(delta.technologies) or '—')} |"
+        )
+    return "\n".join(lines)
+
+
+def _display(value: object) -> str:
+    return "—" if value is None else str(value)
+
+
+def _markdown_cell(value: str) -> str:
+    return value.replace("|", "\\|").replace("\n", " ")
 
 
 def _progress_is_enabled(is_interactive: bool, legacy_windows: bool) -> bool:

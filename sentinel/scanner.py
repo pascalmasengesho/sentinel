@@ -11,7 +11,9 @@ from sentinel.http_client import SafeHttpClient
 from sentinel.models import ModuleResult, ScanReport
 from sentinel.modules import (
     ApiDiscoveryModule,
+    CrawlerModule,
     DnsModule,
+    EmailSecurityModule,
     HeaderModule,
     HttpModule,
     JavaScriptModule,
@@ -21,6 +23,7 @@ from sentinel.modules import (
     RobotsModule,
     SitemapModule,
     SurfaceModule,
+    TakeoverModule,
     TechnologyModule,
     TlsModule,
     WordlistModule,
@@ -28,28 +31,50 @@ from sentinel.modules import (
 from sentinel.modules.base import ScanContext, ScanModule
 from sentinel.plugins import load_plugins
 from sentinel.prioritization import build_research_priorities
+from sentinel.scope import ScopeManifest
 from sentinel.target import Target, normalize_target
 
 
 class Scanner:
     """Run ordered module stages and return a complete, renderable report."""
 
-    def __init__(self, target: str, config: ScanConfig, authorized: bool) -> None:
+    def __init__(
+        self,
+        target: str,
+        config: ScanConfig,
+        authorized: bool,
+        scope: ScopeManifest | None = None,
+    ) -> None:
         if not authorized:
             raise PermissionError(
                 "Sentinel requires --authorized before it makes network requests."
             )
         config.validate()
         self.target: Target = normalize_target(target, allow_private=config.allow_private)
+        if scope:
+            scope.assert_target_allowed(self.target)
         self.config = config
         self.authorized = authorized
+        self.scope = scope
 
     async def scan(self) -> ScanReport:
         """Run the selected modules while preserving useful partial results on failure."""
         report = ScanReport.create(self.target.url, self.authorized, __version__)
-        async with SafeHttpClient(self.target, self.config) as http:
-            context = ScanContext(target=self.target, config=self.config, http=http)
-            first_stage: list[ScanModule] = [DnsModule(), HttpModule(), TlsModule(), PortModule()]
+        if self.scope:
+            report.modules.append(
+                ModuleResult(module="scope", data=self.scope.report_data(self.target))
+            )
+        async with SafeHttpClient(self.target, self.config, scope=self.scope) as http:
+            context = ScanContext(
+                target=self.target, config=self.config, http=http, scope=self.scope
+            )
+            first_stage: list[ScanModule] = [
+                DnsModule(),
+                EmailSecurityModule(),
+                HttpModule(),
+                TlsModule(),
+                PortModule(),
+            ]
             report.modules.extend(await self._run_stage(first_stage, context))
 
             # These read the root response/robots output, so preserving this order
@@ -60,11 +85,16 @@ class Scanner:
                 TechnologyModule(),
                 SurfaceModule(),
                 RobotsModule(),
-                JavaScriptModule(),
             ]
             report.modules.extend(await self._run_stage(second_stage, context))
+            report.modules.extend(await self._run_stage([TakeoverModule()], context))
             report.modules.extend(await self._run_stage([SitemapModule()], context))
-            final_stage: list[ScanModule] = [ApiDiscoveryModule(), WordlistModule()]
+            report.modules.extend(await self._run_stage([CrawlerModule()], context))
+            final_stage: list[ScanModule] = [
+                JavaScriptModule(),
+                ApiDiscoveryModule(),
+                WordlistModule(),
+            ]
             if self.config.enable_public_artifact_checks:
                 final_stage.append(PublicArtifactModule())
             report.modules.extend(await self._run_stage(final_stage, context))

@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Added local YAML program-scope manifests with host/path exclusions, rate caps, and enforced
+  scope context in reports.
+- Added an opt-in bounded same-host crawler and sequential manifest batch scans.
+- Added high-signal JavaScript structural triage with script-source provenance, vendor filtering,
+  route/query/S3/header mapping, and redacted database-URI markers.
+- Added asynchronous header-only asset monitoring with shared throttling, SQLite baselines, and
+  Markdown summaries for new/status/size deltas only.
+- Added passive SPF/DMARC email-policy checks and DNS-only subdomain-takeover triage for
+  CT-discovered names; takeover triage never connects to third-party services.
+- Made WHOIS opt-in (`--whois`), added strict configuration type/bounds validation, hardened
+  the private-address guard to reject mixed public/private DNS answers, and fixed robots.txt
+  Disallow prefix matching to follow the standard.
+- Expanded technology fingerprints for CMS, frameworks, analytics, CDN/WAF, and hosting hints.
+
 ## 0.2.0 - 2026-08-11
 
 - Added enterprise HTML reporting with executive summaries, severity badges, charts,

@@ -18,8 +18,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 COPY --from=builder /wheels /wheels
 
-RUN groupadd --system sentinel \
-    && useradd --system --gid sentinel --create-home sentinel \
+RUN groupadd --system --gid 1000 sentinel \
+    && useradd --system --uid 1000 --gid sentinel --create-home sentinel \
     && mkdir /output \
     && chown sentinel:sentinel /output \
     && python -m pip install --no-cache-dir /wheels/*.whl \

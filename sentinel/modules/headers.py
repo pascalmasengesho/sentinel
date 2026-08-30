@@ -166,4 +166,40 @@ class HeaderModule(ScanModule):
                     url=url,
                 )
             )
+        elif match and "includesubdomains" not in hsts.lower():
+            findings.append(
+                Finding(
+                    title="HSTS policy does not include subdomains",
+                    severity=Severity.INFO,
+                    description=(
+                        "The observed HSTS policy protects the exact host only; subdomains "
+                        "remain subject to downgrade until each one publishes its own policy."
+                    ),
+                    evidence=f"Strict-Transport-Security: {hsts}",
+                    recommendation=(
+                        "Add includeSubDomains after confirming every subdomain supports HTTPS."
+                    ),
+                    module=HeaderModule.name,
+                    url=url,
+                )
+            )
+        referrer_policy = headers.get("referrer-policy", "")
+        if "unsafe-url" in referrer_policy.lower():
+            findings.append(
+                Finding(
+                    title="Referrer-Policy allows full URLs to be sent cross-origin",
+                    severity=Severity.LOW,
+                    description=(
+                        "The observed referrer policy includes unsafe-url, which sends the full "
+                        "URL, including path and query, to cross-origin destinations."
+                    ),
+                    evidence=f"Referrer-Policy: {referrer_policy}",
+                    recommendation=(
+                        "Use a stricter policy such as strict-origin-when-cross-origin and "
+                        "avoid placing sensitive data in URL query strings."
+                    ),
+                    module=HeaderModule.name,
+                    url=url,
+                )
+            )
         return findings

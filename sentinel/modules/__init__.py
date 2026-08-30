@@ -2,7 +2,9 @@
 
 from sentinel.modules.api import ApiDiscoveryModule
 from sentinel.modules.artifacts import PublicArtifactModule
+from sentinel.modules.crawler import CrawlerModule
 from sentinel.modules.dns import DnsModule
+from sentinel.modules.email import EmailSecurityModule
 from sentinel.modules.headers import HeaderModule
 from sentinel.modules.http import HttpModule
 from sentinel.modules.javascript import JavaScriptModule
@@ -11,6 +13,7 @@ from sentinel.modules.recon import ReconModule
 from sentinel.modules.robots import RobotsModule
 from sentinel.modules.sitemap import SitemapModule
 from sentinel.modules.surface import SurfaceModule
+from sentinel.modules.takeover import TakeoverModule
 from sentinel.modules.tech import TechnologyModule
 from sentinel.modules.tls import TlsModule
 from sentinel.modules.wordlist import WordlistModule
@@ -18,7 +21,9 @@ from sentinel.modules.wordlist import WordlistModule
 __all__ = [
     "ApiDiscoveryModule",
     "PublicArtifactModule",
+    "CrawlerModule",
     "DnsModule",
+    "EmailSecurityModule",
     "HeaderModule",
     "HttpModule",
     "JavaScriptModule",
@@ -27,6 +32,7 @@ __all__ = [
     "RobotsModule",
     "SitemapModule",
     "SurfaceModule",
+    "TakeoverModule",
     "TechnologyModule",
     "TlsModule",
     "WordlistModule",

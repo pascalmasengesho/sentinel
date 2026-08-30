@@ -20,7 +20,10 @@ _SEVERITY_ORDER = ("high", "medium", "low", "info")
 _SEVERITY_WEIGHTS = {"high": 25, "medium": 12, "low": 4, "info": 1}
 _MODULE_ICONS = {
     "api_discovery": "⌘",
+    "content_discovery": "≡",
+    "crawler": "↳",
     "dns": "◎",
+    "email_security": "✉",
     "headers": "▤",
     "http": "↗",
     "javascript": "{ }",
@@ -30,7 +33,9 @@ _MODULE_ICONS = {
     "recon": "⌁",
     "robots": "⌂",
     "sitemap": "≋",
+    "scope": "⌖",
     "surface": "◫",
+    "takeover": "⌖",
     "technology": "◈",
     "tls": "◇",
     "wordlist": "≡",

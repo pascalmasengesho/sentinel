@@ -1,0 +1,14 @@
+# Copy this file only after confirming every host and path with the program's scope.
+name: Example authorized program
+allowed_hosts:
+  - example.com
+  - "*.example.com"
+targets:
+  - https://www.example.com
+  - https://api.example.com
+excluded_hosts:
+  - status.example.com
+excluded_paths:
+  - /admin
+  - /internal
+rate_limit_per_second: 0.5

@@ -93,7 +93,7 @@ class ScanReport:
             target=str(data.get("target", "")),
             started_at=str(data.get("started_at", "")),
             finished_at=str(data.get("finished_at", "")),
-            authorized=bool(data.get("authorized", False)),
+            authorized=_as_bool(data.get("authorized", False)),
             version=str(data.get("version", "unknown")),
             modules=modules,
             statistics=statistics,
@@ -151,3 +151,14 @@ def _as_int(value: object) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def _as_bool(value: object) -> bool:
+    """Parse a report boolean without turning the string ``"false"`` into ``True``."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    if isinstance(value, (int, float)):
+        return value != 0
+    return False

@@ -44,12 +44,15 @@ class ReconModule(ScanModule):
         if context.config.enable_passive_subdomains:
             try:
                 data["passive_subdomains"] = await self._crtsh(
-                    context.target.host, context.config.timeout_seconds
+                    context.target.host, context.config.timeout_seconds, context.config.user_agent
                 )
+                context.data["passive_subdomains"] = data["passive_subdomains"]
             except Exception as exc:
                 errors.append(f"crt.sh: {type(exc).__name__}: {exc}")
         if self._is_ip_literal(context.target.host):
             data["whois"] = {"skipped": "WHOIS collection applies to DNS names, not IP literals."}
+        elif not context.config.enable_whois:
+            data["whois"] = {"skipped": "WHOIS lookup is opt-in; enable it with --whois."}
         else:
             try:
                 data["whois"] = await asyncio.to_thread(self._whois, context.target.host)
@@ -68,11 +71,11 @@ class ReconModule(ScanModule):
         return ModuleResult(module=self.name, data=data, errors=errors)
 
     @staticmethod
-    async def _crtsh(host: str, timeout_seconds: float) -> list[str]:
+    async def _crtsh(host: str, timeout_seconds: float, user_agent: str) -> list[str]:
         """Query crt.sh, a public certificate-transparency index, with a small result cap."""
         url = f"https://crt.sh/?q={quote('%.' + host)}&output=json"
         async with httpx.AsyncClient(
-            timeout=timeout_seconds, headers={"User-Agent": "Sentinel/0.1"}
+            timeout=timeout_seconds, headers={"User-Agent": user_agent}
         ) as client:
             response = await client.get(url)
             response.raise_for_status()

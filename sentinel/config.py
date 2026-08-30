@@ -21,11 +21,14 @@ class ScanConfig:
     verify_tls: bool = True
     max_redirects: int = 3
     max_response_bytes: int = 1_000_000
-    user_agent: str = "Sentinel/0.1 (authorized security assessment)"
+    user_agent: str = "Sentinel/0.2 (authorized security assessment)"
     ports: list[int] = field(default_factory=lambda: list(DEFAULT_PORTS))
     enable_port_scan: bool = True
     enable_banner_grab: bool = False
     enable_passive_subdomains: bool = False
+    enable_whois: bool = False
+    enable_email_security: bool = True
+    enable_takeover_check: bool = False
     enable_public_api_probe: bool = False
     enable_public_artifact_checks: bool = False
     enable_content_discovery: bool = False
@@ -33,23 +36,85 @@ class ScanConfig:
     max_directory_requests: int = 50
     max_sitemap_urls: int = 100
     max_js_files: int = 10
+    enable_safe_crawl: bool = False
+    max_crawl_pages: int = 20
+    max_crawl_depth: int = 2
     allow_private: bool = False
     plugin_directory: str | None = None
 
     def validate(self) -> None:
-        """Validate configuration bounds before any requests are made."""
-        if self.timeout_seconds <= 0:
-            raise ValueError("timeout_seconds must be greater than zero")
-        if not 1 <= self.concurrency <= 20:
-            raise ValueError("concurrency must be between 1 and 20")
-        if not 0.1 <= self.rate_limit_per_second <= 10:
-            raise ValueError("rate_limit_per_second must be between 0.1 and 10")
+        """Validate configuration types and bounds before any requests are made."""
+        self._require_number("timeout_seconds", self.timeout_seconds, minimum=0.1)
+        self._require_integer("concurrency", self.concurrency, minimum=1, maximum=20)
+        self._require_number(
+            "rate_limit_per_second", self.rate_limit_per_second, minimum=0.1, maximum=10.0
+        )
+        self._require_integer("max_redirects", self.max_redirects, minimum=1, maximum=10)
+        self._require_integer(
+            "max_response_bytes", self.max_response_bytes, minimum=1_000, maximum=10_000_000
+        )
+        if not isinstance(self.user_agent, str) or not self.user_agent.strip():
+            raise ValueError("user_agent must be a non-empty string")
+        if not isinstance(self.ports, list) or not all(
+            isinstance(port, int) and not isinstance(port, bool) for port in self.ports
+        ):
+            raise ValueError("ports must be a list of integers")
         if len(self.ports) > 100:
             raise ValueError("at most 100 ports may be selected")
         if any(port < 1 or port > 65535 for port in self.ports):
             raise ValueError("ports must be integers between 1 and 65535")
-        if not 1 <= self.max_directory_requests <= 500:
-            raise ValueError("max_directory_requests must be between 1 and 500")
+        for name, value in self._boolean_fields().items():
+            if not isinstance(value, bool):
+                raise ValueError(f"{name} must be a boolean")
+        self._require_integer(
+            "max_directory_requests", self.max_directory_requests, minimum=1, maximum=500
+        )
+        self._require_integer("max_sitemap_urls", self.max_sitemap_urls, minimum=1, maximum=10_000)
+        self._require_integer("max_js_files", self.max_js_files, minimum=1, maximum=100)
+        self._require_integer("max_crawl_pages", self.max_crawl_pages, minimum=1, maximum=100)
+        self._require_integer("max_crawl_depth", self.max_crawl_depth, minimum=1, maximum=4)
+        if self.wordlist_path is not None and not isinstance(self.wordlist_path, str):
+            raise ValueError("wordlist_path must be a string or null")
+        if self.plugin_directory is not None and not isinstance(self.plugin_directory, str):
+            raise ValueError("plugin_directory must be a string or null")
+
+    def _boolean_fields(self) -> dict[str, bool]:
+        """Return boolean configuration fields for strict type validation."""
+        return {
+            "verify_tls": self.verify_tls,
+            "enable_port_scan": self.enable_port_scan,
+            "enable_banner_grab": self.enable_banner_grab,
+            "enable_passive_subdomains": self.enable_passive_subdomains,
+            "enable_whois": self.enable_whois,
+            "enable_email_security": self.enable_email_security,
+            "enable_takeover_check": self.enable_takeover_check,
+            "enable_public_api_probe": self.enable_public_api_probe,
+            "enable_public_artifact_checks": self.enable_public_artifact_checks,
+            "enable_content_discovery": self.enable_content_discovery,
+            "enable_safe_crawl": self.enable_safe_crawl,
+            "allow_private": self.allow_private,
+        }
+
+    @staticmethod
+    def _require_number(
+        name: str, value: object, minimum: float, maximum: float | None = None
+    ) -> None:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(f"{name} must be a number")
+        number = float(value)
+        if number < minimum or (maximum is not None and number > maximum):
+            upper = f" and {maximum}" if maximum is not None else ""
+            raise ValueError(f"{name} must be between {minimum}{upper}")
+
+    @staticmethod
+    def _require_integer(
+        name: str, value: object, minimum: int, maximum: int | None = None
+    ) -> None:
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError(f"{name} must be an integer")
+        if value < minimum or (maximum is not None and value > maximum):
+            upper = f" and {maximum}" if maximum is not None else ""
+            raise ValueError(f"{name} must be between {minimum}{upper}")
 
 
 def load_config(path: Path | None = None, profile: str | None = None) -> ScanConfig:
@@ -62,8 +127,10 @@ def load_config(path: Path | None = None, profile: str | None = None) -> ScanCon
     if not isinstance(loaded, dict):
         raise ValueError("Configuration must be a YAML mapping.")
     profiles = loaded.pop("profiles", {})
+    if not isinstance(profiles, dict):
+        raise ValueError("'profiles' must be a YAML mapping of named profiles.")
     if profile:
-        if not isinstance(profiles, dict) or profile not in profiles:
+        if profile not in profiles:
             raise ValueError(f"Profile '{profile}' was not found in {path}.")
         profile_data = profiles[profile]
         if not isinstance(profile_data, dict):

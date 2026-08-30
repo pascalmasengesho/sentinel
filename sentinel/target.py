@@ -5,6 +5,7 @@ from __future__ import annotations
 import ipaddress
 import socket
 from dataclasses import dataclass
+from functools import lru_cache
 from urllib.parse import urlsplit, urlunsplit
 
 
@@ -77,21 +78,39 @@ def normalize_target(raw: str, allow_private: bool = False) -> Target:
     )
 
 
-def is_safe_public_host(host: str, allow_private: bool = False) -> bool:
-    """Return whether a host is safe to request under Sentinel's default policy."""
-    if allow_private:
-        return True
-    if _is_ip_literal(host):
-        return _is_public_ip(host)
+@lru_cache(maxsize=512)
+def _resolve_host_addresses(host: str) -> tuple[str, ...]:
+    """Return the sorted, deduplicated stream addresses for a hostname.
+
+    Results are cached for the lifetime of the process so the safety check does
+    not repeat a blocking resolver lookup for every request to the same host.
+    """
     try:
         addresses = {
             str(entry[4][0]) for entry in socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
         }
     except socket.gaierror:
+        return ()
+    return tuple(sorted(addresses))
+
+
+def is_safe_public_host(host: str, allow_private: bool = False) -> bool:
+    """Return whether a host is safe to request under Sentinel's default policy.
+
+    A DNS name is considered safe only when every resolved stream address is a
+    public, globally routable address. Mixed public/private answers are rejected
+    to reduce the risk of DNS-rebinding tricks that reach internal addresses.
+    """
+    if allow_private:
+        return True
+    if _is_ip_literal(host):
+        return _is_public_ip(host)
+    addresses = _resolve_host_addresses(host)
+    if not addresses:
         # DNS modules will report a resolution error. Do not turn a transient lookup
         # failure into a misleading private-address decision.
         return True
-    return bool(addresses) and any(_is_public_ip(address) for address in addresses)
+    return all(_is_public_ip(address) for address in addresses)
 
 
 def same_host(url: str, target: Target) -> bool:

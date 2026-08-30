@@ -19,6 +19,7 @@ check: lint typecheck test
 
 build:
 	python -m pip install --upgrade build twine
+	rm -rf build dist
 	python -m build
 
 check-dist: build

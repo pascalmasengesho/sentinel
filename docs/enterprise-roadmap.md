@@ -28,12 +28,22 @@ Every future capability must preserve that boundary.
   export. Workspace data is never transmitted by Sentinel.
 - A deterministic Research Prioritization Engine that correlates observed authentication, API,
   client-side, passive-asset, and public-metadata signals into safe manual-review queues.
+- Local YAML scope manifests with allow-listed host patterns, excluded hosts/path prefixes, rate
+  caps, reportable scope context, and sequential batch scans of explicit authorized targets.
+- An opt-in bounded crawler that follows same-host, query-free HTML navigation links by GET only,
+  with page/depth limits and conservative robots.txt Disallow handling.
+- High-signal proprietary JavaScript static triage with exact script-source provenance for route,
+  query-flag, S3-reference, and internal-style header observations. It avoids generic token lists,
+  skips recognizable vendor frameworks, and redacts database URI markers.
+- Local asynchronous asset delta tracking: direct header-only target probes, shared rate/concurrency
+  controls, target-level failure isolation, SQLite baselines, and Markdown output for new/status/size
+  changes only.
 
 ## Planned safe phases
 
 | Stage | Scope | Guardrails |
 | --- | --- | --- |
-| Safe discovery refinement | Optional same-host crawler with explicit page/depth/time limits, robots policy controls, canonical URL normalization, and duplicate-content detection. | Off by default; no login flows, form submission, or unrestricted crawling. |
+| Safe discovery refinement | Canonical URL normalization and duplicate-content detection for the delivered bounded crawler. | Off by default; no login flows, form submission, or unrestricted crawling. |
 | Workspace refinement | Resume metadata, scheduled local rescans, screenshot evidence, bookmarks, richer search, and an interactive graph viewer over the existing local graph export. | Local-only by default; no central collection of target data, and screenshot capture remains explicit opt-in. |
 | Evidence workflow | Opt-in screenshots of public pages, redaction-aware evidence bundles, and bug-bounty report templates. | No authenticated capture or sensitive-data collection without explicit user action. |
 | Team deployment | Optional web dashboard, REST API, authentication, roles, notes, queueing, and live progress. | Separate deployment profile, secure defaults, auditable access controls, and no new active checks. |

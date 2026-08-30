@@ -17,6 +17,9 @@ def build_research_priorities(modules: list[ModuleResult]) -> ModuleResult:
     javascript = module_data.get("javascript", {})
     recon = module_data.get("recon", {})
     artifacts = module_data.get("public_artifacts", {})
+    crawler = module_data.get("crawler", {})
+    takeover = module_data.get("takeover", {})
+    email_security = module_data.get("email_security", {})
 
     forms = _mapping_list(surface.get("forms"))
     auth_points = _strings(surface.get("authentication_points"))
@@ -102,6 +105,64 @@ def build_research_priorities(modules: list[ModuleResult]) -> ModuleResult:
                 next_step=(
                     "Use published security contact and policy information to align disclosure and "
                     "verification work with the owner's documented process."
+                ),
+            )
+        )
+
+    takeover_candidates = _mapping_list(takeover.get("candidates"))
+    if takeover_candidates:
+        priorities.append(
+            _priority(
+                title="Subdomain takeover candidate review",
+                tier="High-value manual review",
+                confidence="DNS-only triage of certificate-transparency subdomains",
+                evidence=[f"Takeover candidates: {len(takeover_candidates)}"],
+                next_step=(
+                    "Validate each candidate's service reference manually, confirm it is in "
+                    "scope, and never claim third-party resources without written program "
+                    "permission."
+                ),
+            )
+        )
+
+    if email_security.get("enabled"):
+        spf = _strings(email_security.get("spf_records"))
+        dmarc = str(email_security.get("dmarc_record", ""))
+        weak_email_policy = (
+            not spf or not dmarc or "p=none" in dmarc.lower() or "+all" in " ".join(spf).lower()
+        )
+        if weak_email_policy:
+            priorities.append(
+                _priority(
+                    title="Email authentication policy review",
+                    tier="Contextual manual review",
+                    confidence="Published SPF/DMARC DNS records",
+                    evidence=[
+                        f"SPF records: {len(spf)}",
+                        f"DMARC published: {bool(dmarc)}",
+                    ],
+                    next_step=(
+                        "Compare the published email policy with the program's scope; missing "
+                        "or weak SPF/DMARC can support a spoofing report when mail handling is "
+                        "in scope."
+                    ),
+                )
+            )
+
+    crawled_pages = _mapping_list(crawler.get("pages"))
+    if len(crawled_pages) > 1:
+        priorities.append(
+            _priority(
+                title="Public route inventory review",
+                tier="Discovery follow-up",
+                confidence="Bounded same-origin GET crawl",
+                evidence=[
+                    f"Public routes requested: {len(crawled_pages)}",
+                    f"Robots paths skipped: {len(_strings(crawler.get('robots_skipped_urls')))}",
+                ],
+                next_step=(
+                    "Confirm each collected route remains in scope, then use the route inventory "
+                    "to guide manual documentation and non-destructive review."
                 ),
             )
         )

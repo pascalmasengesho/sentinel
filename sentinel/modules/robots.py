@@ -32,6 +32,7 @@ class RobotsModule(ScanModule):
             if key.lower() == "sitemap" and value:
                 sitemaps.append(urljoin(response.url, value))
         context.robots_text = response.text
+        context.robots_disallowed = disallowed
         context.robots_sitemaps = sitemaps
         return ModuleResult(
             module=self.name,

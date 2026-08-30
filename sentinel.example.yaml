@@ -7,18 +7,27 @@ ports: [80, 443, 8080, 8443, 8000, 3000, 5000, 22]
 enable_port_scan: true
 enable_banner_grab: false
 enable_passive_subdomains: false
+enable_whois: false
+enable_email_security: true
+enable_takeover_check: false
 enable_public_api_probe: false
 enable_public_artifact_checks: false
 enable_content_discovery: false
 max_directory_requests: 50
 max_sitemap_urls: 100
 max_js_files: 10
+# The crawler is opt-in, same-host, GET-only, and skips parsed robots Disallow paths.
+enable_safe_crawl: false
+max_crawl_pages: 20
+max_crawl_depth: 2
 allow_private: false
 
 profiles:
   passive:
     enable_port_scan: false
     enable_passive_subdomains: true
+    enable_whois: true
+    enable_takeover_check: true
   local-lab:
     allow_private: true
     rate_limit_per_second: 2

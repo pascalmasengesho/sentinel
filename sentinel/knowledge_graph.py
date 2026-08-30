@@ -117,7 +117,9 @@ def build_knowledge_graph(report: dict[str, Any], scan_id: int | None = None) ->
         modules.get("surface", {}),
         modules.get("robots", {}),
         modules.get("sitemap", {}),
+        modules.get("crawler", {}),
     )
+    _add_scope(graph, target_node, modules.get("scope", {}))
     _add_public_artifacts(graph, target_node, modules.get("public_artifacts", {}))
     _add_observations(graph, target_node, report)
     return graph
@@ -223,6 +225,7 @@ def _add_web_assets(
     surface: dict[str, Any],
     robots: dict[str, Any],
     sitemap: dict[str, Any],
+    crawler: dict[str, Any],
 ) -> None:
     for source in _strings(javascript.get("script_sources")):
         node = graph.add_node("javascript", source)
@@ -264,6 +267,35 @@ def _add_web_assets(
     for url in _strings(sitemap.get("urls")):
         node = graph.add_node("published_url", url, {"source": "sitemap"})
         graph.add_edge(target_node, node, "publishes")
+    crawled_pages = crawler.get("pages", [])
+    if isinstance(crawled_pages, list):
+        for page in crawled_pages:
+            if not isinstance(page, dict):
+                continue
+            url = str(page.get("url", ""))
+            if not url:
+                continue
+            node = graph.add_node(
+                "crawled_url",
+                url,
+                {
+                    "depth": str(page.get("depth", "")),
+                    "status_code": str(page.get("status_code", "")),
+                },
+            )
+            graph.add_edge(target_node, node, "requested")
+
+
+def _add_scope(graph: KnowledgeGraph, target_node: str, data: dict[str, Any]) -> None:
+    name = str(data.get("name", ""))
+    if not name:
+        return
+    node = graph.add_node(
+        "assessment_scope",
+        name,
+        {"rate_limit_per_second": str(data.get("rate_limit_per_second", ""))},
+    )
+    graph.add_edge(target_node, node, "assessed_under")
 
 
 def _add_public_artifacts(graph: KnowledgeGraph, target_node: str, data: dict[str, Any]) -> None:
