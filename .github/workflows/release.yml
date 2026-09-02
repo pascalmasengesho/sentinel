@@ -61,22 +61,25 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AUR_PACKAGE_NAME: sentinel-bounty
+      AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
     steps:
       - uses: actions/download-artifact@v5
+        if: env.AUR_SSH_PRIVATE_KEY != ''
         with:
           name: release-dists
           path: dist/
       - name: Configure AUR SSH key
-        env:
-          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        if: env.AUR_SSH_PRIVATE_KEY != ''
         run: |
           install -m 700 -d ~/.ssh
           printf '%s\n' "${AUR_SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
       - name: Clone package repository
+        if: env.AUR_SSH_PRIVATE_KEY != ''
         run: git clone "ssh://aur@aur.archlinux.org/${AUR_PACKAGE_NAME}.git" aur-repository
       - name: Update recipe and source metadata
+        if: env.AUR_SSH_PRIVATE_KEY != ''
         run: |
           cp dist/aur/PKGBUILD aur-repository/PKGBUILD
           docker run --rm -v "${PWD}/aur-repository:/pkg" -w /pkg archlinux:latest /bin/bash -lc "
@@ -86,6 +89,7 @@ jobs:
             su builder -c 'makepkg --printsrcinfo > .SRCINFO'
           "
       - name: Push AUR update
+        if: env.AUR_SSH_PRIVATE_KEY != ''
         working-directory: aur-repository
         run: |
           git config user.name "github-actions[bot]"
