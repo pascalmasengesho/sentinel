@@ -29,7 +29,7 @@ apps:
 parts:
   sentinel:
     plugin: python
-    source: ..
+    source: .
     python-packages:
       - hatchling
       - .
