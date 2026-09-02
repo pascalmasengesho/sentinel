@@ -37,12 +37,12 @@ jobs:
       - name: Update recipe and source metadata
         run: |
           cp aur-assets/PKGBUILD aur-repository/PKGBUILD
-          docker run --rm -v "${PWD}/aur-repository:/pkg" -w /pkg archlinux:latest /bin/bash -lc '
+          docker run --rm -v "${PWD}/aur-repository:/pkg" -w /pkg archlinux:latest /bin/bash -lc "
             pacman -Syu --noconfirm pacman-contrib base-devel
-            useradd -m builder
+            useradd -m -u $(id -u) builder
             chown -R builder:builder /pkg
-            su builder -c "makepkg --printsrcinfo" > .SRCINFO
-          '
+            su builder -c 'makepkg --printsrcinfo > .SRCINFO'
+          "
       - name: Push AUR update
         working-directory: aur-repository
         run: |
