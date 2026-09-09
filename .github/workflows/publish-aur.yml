@@ -29,8 +29,16 @@ jobs:
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
         run: |
           install -m 700 -d ~/.ssh
-          printf '%s\n' "${AUR_SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
+          if [ -z "${AUR_SSH_PRIVATE_KEY}" ]; then
+            echo "::error::AUR_SSH_PRIVATE_KEY is required to publish an AUR recipe."
+            exit 1
+          fi
+          printf '%s\n' "${AUR_SSH_PRIVATE_KEY}" | tr -d '\r' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
+          if ! ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null; then
+            echo "::error::AUR_SSH_PRIVATE_KEY is not a valid private key. Re-add the complete multiline key."
+            exit 1
+          fi
           ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
       - name: Clone package repository
         run: git clone "ssh://aur@aur.archlinux.org/${AUR_PACKAGE_NAME}.git" aur-repository
